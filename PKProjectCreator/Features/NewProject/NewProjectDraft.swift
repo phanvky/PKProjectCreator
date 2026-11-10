@@ -6,7 +6,6 @@ struct NewProjectDraft {
     var type: ProjectType
     var projectName = ""
     var templateID: FolderTemplate.ID?
-    var useYearFolder = true
     /// Turning this off is the explicit "folders only" choice.
     var createPremiere: Bool
 }
@@ -30,7 +29,10 @@ extension AppState {
     }
 
     var destinationFolder: String {
-        ProjectNaming.destinationFolder(base: settings.destinationBase, date: draft.date, useYearFolder: draft.useYearFolder)
+        ProjectNaming.destinationFolder(
+            base: (destination.url ?? settings.defaultDestinationURL).plainPath,
+            date: draft.date, useYearFolder: settings.useYearFolderFromProjectDate
+        )
     }
 
     var projectPath: String { "\(destinationFolder)/\(displayName)/" }
@@ -39,7 +41,7 @@ extension AppState {
         (premiere.destinationFolder + ["\(displayName).prproj"]).joined(separator: "/")
     }
 
-    /// What the bottom bar says. Creation itself stays disabled in Phase 01.
+    /// What the bottom bar says. Creation itself is not implemented yet.
     var creationStatus: StatusMessage {
         if let issue = nameIssue {
             return StatusMessage(text: issue.message, kind: issue == .empty ? .neutral : .danger)
@@ -47,11 +49,11 @@ extension AppState {
         if let template = selectedTemplate, !template.isConfigured {
             return StatusMessage(text: "“\(template.name)” needs configuration: add its folders in Folder Templates.", kind: .warning)
         }
-        if draft.createPremiere && premiere.status == .missing {
-            return StatusMessage(
-                text: "Premiere template missing — creation is blocked. Restore it, or turn off “Create Premiere project from template”.",
-                kind: .warning
-            )
+        if let problem = destination.problem(item: "destination folder") {
+            return StatusMessage(text: problem, kind: .warning)
+        }
+        if draft.createPremiere, let problem = premiereTemplate.problem(item: "Premiere template") {
+            return StatusMessage(text: "\(problem) Or turn off “Create Premiere project from template”.", kind: .warning)
         }
         return StatusMessage(text: "Project creation will be enabled in a later phase.", kind: .neutral)
     }

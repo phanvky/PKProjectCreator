@@ -16,7 +16,7 @@ struct DriveStatusCard: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("\(Text(drive.name).bold()) · \(drive.role)")
                             .foregroundStyle(.primary)
-                        StatusLabel(text: drive.status.label, kind: drive.status.kind)
+                        StatusLabel(text: drive.state.label, kind: drive.state.kind)
                             .font(.caption)
                     }
                 }
@@ -28,6 +28,5 @@ struct DriveStatusCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.cardFill, in: .rect(cornerRadius: Theme.cornerRadius))
         .overlay(RoundedRectangle(cornerRadius: Theme.cornerRadius).strokeBorder(Theme.cardBorder))
-        .help("Drive monitoring arrives in a later phase.")
     }
 }

@@ -172,16 +172,17 @@ private struct DestinationSection: View {
 
     var body: some View {
         @Bindable var app = app
-        let drive = app.drive(forPath: app.destinationFolder)
+        let destination = app.destination
 
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeader("Destination")
+            SectionHeader("Destination") {
+                Text(destination.locationKind)
+            }
             FormCard {
                 HStack(spacing: 10) {
-                    PathBreadcrumb(path: app.destinationFolder, isInvalid: drive?.status == .notConnected)
-                    Button("Choose…") {}
-                        .disabled(true)
-                        .help("Choosing another location arrives in a later phase.")
+                    PathBreadcrumb(path: app.destinationFolder, isInvalid: destination.state.kind == .danger)
+                    Button(destination.chooseTitle) { app.chooseDestination() }
+                        .help("Choose the folder where new projects are created")
                 }
                 .padding(Theme.rowPadding)
 
@@ -196,11 +197,9 @@ private struct DestinationSection: View {
                 .padding(Theme.rowPadding)
 
                 HStack {
-                    Toggle("Use year folder from project date", isOn: $app.draft.useYearFolder)
+                    Toggle("Use year folder from project date", isOn: $app.settings.useYearFolderFromProjectDate)
                     Spacer(minLength: 12)
-                    if let drive {
-                        StatusLabel(text: "\(drive.name) \(drive.status.label.lowercased())", kind: drive.status.kind)
-                    }
+                    StatusLabel(text: "\(destination.volumeName) · \(destination.state.label)", kind: destination.state.kind)
                 }
                 .padding(Theme.rowPadding)
             }
@@ -215,7 +214,8 @@ private struct PremiereSection: View {
 
     var body: some View {
         @Bindable var app = app
-        let isMissing = app.premiere.status == .missing
+        let template = app.premiereTemplate
+        let isMissing = !template.isReady
 
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader("Premiere Pro")
@@ -223,7 +223,7 @@ private struct PremiereSection: View {
                 HStack {
                     Toggle("Create Premiere project from template", isOn: $app.draft.createPremiere)
                     Spacer(minLength: 12)
-                    StatusBadge(text: app.premiere.status.label, kind: app.premiere.status.kind)
+                    StatusBadge(text: template.state.label, kind: template.state.kind)
                 }
                 .padding(Theme.rowPadding)
 
@@ -233,7 +233,7 @@ private struct PremiereSection: View {
                         .foregroundStyle(.secondary)
                         .frame(width: 56, alignment: .leading)
                     Image(systemName: "doc.fill").foregroundStyle(Theme.fileTint)
-                    Text(app.premiere.sourceFilename)
+                    Text(template.url?.lastPathComponent ?? "No template selected")
                         .strikethrough(isMissing)
                         .foregroundStyle(isMissing ? StatusKind.warning.color : Color.primary)
                         .lineLimit(1)
@@ -257,7 +257,7 @@ private struct PremiereSection: View {
                 .padding(Theme.rowPadding)
                 .opacity(app.draft.createPremiere ? 1 : 0.45)
 
-                ToggleRow("Open in Premiere Pro after creating", isOn: $app.settings.openPremiereAfterCreate)
+                ToggleRow("Open in Premiere Pro after creating", isOn: $app.settings.openPremiereAfterCreation)
                     .disabled(!app.draft.createPremiere)
             }
         }

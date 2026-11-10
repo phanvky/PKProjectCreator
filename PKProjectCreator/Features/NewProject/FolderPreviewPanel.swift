@@ -59,8 +59,8 @@ struct FolderPreviewPanel: View {
                 id: Self.premiereFileID,
                 folderPath: app.premiere.destinationFolder,
                 name: "\(app.displayName).prproj",
-                note: app.premiere.status == .missing ? "template missing" : "from template",
-                isMissing: app.premiere.status == .missing
+                note: app.premiereTemplate.isReady ? "from template" : "template not ready",
+                isMissing: !app.premiereTemplate.isReady
             )
             : nil
         return FolderTreeItem.projectPreview(rootID: Self.rootID, rootName: app.displayName, folders: folders, file: file)

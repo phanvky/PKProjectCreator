@@ -19,9 +19,17 @@ Event, PSC, PSH, Tour, Golf Tournament, TVC, Reels.
 - Vietnamese Unicode, spaces, `&`, `( )`, `'`, `-` are allowed.
 
 ## Locations
-- Projects: `/Volumes/KIOXIA/PROJECT VIDEO/EVENT/{yyyy}` (year from the project date, when enabled). The `EVENT` folder does not change with project type.
-- Premiere master: `/Volumes/WORK/TÀI NGUYÊN /PREMIERE PRO/PROJECT MODEL/Project/Year - Month - Day - Name 2026.prproj` (note the space after `NGUYÊN`).
-- KIOXIA and WORK are separate volumes and are handled independently.
+- Suggested project destination: `/Volumes/KIOXIA/PROJECT VIDEO/EVENT`. With "Use year folder from project date" on, the year of the project date is appended at the time of use: `…/EVENT/2026`. The `EVENT` folder does not change with project type.
+- Suggested Premiere master: `/Volumes/WORK/TÀI NGUYÊN /PREMIERE PRO/PROJECT MODEL/Project/Year - Month - Day - Name 2026.prproj` (note the space after `NGUYÊN`).
+- Both are only **suggested locations** until the user chooses them in a macOS file dialog. Choosing is what authorizes them; the app then shows **Authorized location**. A path that merely exists is never treated as usable.
+- The template must be a `.prproj` file. It is authorized read-only and is never modified. It can be replaced or cleared.
+- The destination and the template are tracked independently, each with one of these states: connected and authorized · connected, permission needed · disconnected · permission expired (stale bookmark that couldn't be renewed) · not found · not selected.
+- Drives are recognized by volume identifier and by where the saved bookmark resolves, not by name or mount path. Both resources are re-checked at launch, after a choice, when any volume is mounted, unmounted or renamed, and when the app becomes active.
+
+## Settings
+Saved in `settings.json`, next to `folder-templates.json` (see Template storage for the real path). Format: `{ "schemaVersion": 1, "settings": {...} }`, atomic write after every change. Missing or invalid values fall back to safe defaults; an unreadable file is kept as `settings.damaged.json` and the user is told.
+
+Fields: `defaultProjectType`, `defaultDestinationURL`, `destinationBookmarkData`, `destinationVolume`, `useYearFolderFromProjectDate`, `premiereTemplateURL`, `premiereTemplateBookmarkData`, `premiereTemplateVolume`, `createPremiereProjectByDefault`, `openFinderAfterCreation`, `openPremiereAfterCreation`, `clearProjectNameAfterCreation`, `maximumRecentProjects`. Nothing confidential is stored; bookmark data is a macOS permission token that only this app can use.
 
 ## Folder templates
 **Standard Production** — 18 folders, 19 with root. Default for Event, PSC, PSH, Tour, Golf Tournament, TVC.

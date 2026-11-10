@@ -16,7 +16,7 @@ struct SidebarView: View {
                 SidebarRow(screen: .folderTemplates)
                     .tag(AppScreen.folderTemplates)
                 SidebarRow(screen: .premiereTemplate) {
-                    StatusDot(kind: app.premiere.status.kind)
+                    StatusDot(kind: app.premiereTemplate.state.kind)
                 }
                 .tag(AppScreen.premiereTemplate)
             }

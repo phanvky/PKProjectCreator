@@ -23,21 +23,19 @@ struct PremiereTemplateView: View {
         .navigationSubtitle(subtitle)
     }
 
-    private var volume: String { app.premiere.volumeName ?? "this Mac" }
+    private var template: ResourceStatus { app.premiereTemplate }
 
     private var subtitle: String {
-        switch app.premiere.status {
-        case .unknown: "Template on \(volume) · not checked yet"
-        case .found: "Template ready on \(volume)"
-        case .missing: "Template missing on \(volume)"
-        }
+        template.state == .notSelected ? "No template selected" : "Template on \(template.volumeName) · \(template.state.label)"
     }
 
     // MARK: Source
 
     private var sourceSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeader("Source Template")
+            SectionHeader("Source Template") {
+                if template.url != nil { Text(template.locationKind) }
+            }
             FormCard {
                 HStack(alignment: .top, spacing: 12) {
                     Image(systemName: "doc.fill")
@@ -45,28 +43,38 @@ struct PremiereTemplateView: View {
                         .foregroundStyle(Theme.fileTint)
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(app.premiere.sourceFilename).font(.headline)
-                        Text(app.premiere.sourceFolder)
-                            .font(Theme.mono)
-                            .foregroundStyle(.secondary)
-                            .textSelection(.enabled)
+                        Text(template.url?.lastPathComponent ?? "No template selected").font(.headline)
+                        if let url = template.url {
+                            Text(url.deletingLastPathComponent().plainPath + "/")
+                                .font(Theme.mono)
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                        }
+                        if template.url != nil, let problem = template.problem(item: "Premiere template") {
+                            Text(problem)
+                                .font(.callout)
+                                .foregroundStyle(template.state.kind.color)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                     Spacer(minLength: 12)
-                    StatusBadge(text: app.premiere.status.label, kind: app.premiere.status.kind)
+                    StatusBadge(text: template.state.label, kind: template.state.kind)
                 }
                 .padding(16)
 
                 HStack {
-                    Label("Volume \(volume)", systemImage: "externaldrive")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Group {
-                        Button("Reveal in Finder") {}
-                        Button("Choose Another…") {}
+                    if template.url != nil {
+                        Label("Volume \(template.volumeName)", systemImage: "externaldrive")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
                     }
-                    .disabled(true)
-                    .help("File access arrives in a later phase.")
+                    Spacer()
+                    Button("Reveal in Finder") { app.revealInFinder(template) }
+                        .disabled(!template.isReady)
+                    Button("Clear") { app.clearPremiereTemplate() }
+                        .disabled(template.url == nil)
+                        .help("Forget this template. The file itself is not changed.")
+                    Button(template.chooseTitle) { app.choosePremiereTemplate() }
                 }
                 .padding(Theme.rowPadding)
             }
@@ -131,8 +139,8 @@ struct PremiereTemplateView: View {
         return VStack(alignment: .leading, spacing: 8) {
             SectionHeader("Behavior")
             FormCard {
-                ToggleRow("Copy template when creating a project", isOn: $app.premiere.copyOnCreate)
-                ToggleRow("Open in Premiere Pro after creating", isOn: $app.settings.openPremiereAfterCreate)
+                ToggleRow("Copy template when creating a project", isOn: $app.settings.createPremiereProjectByDefault)
+                ToggleRow("Open in Premiere Pro after creating", isOn: $app.settings.openPremiereAfterCreation)
                 FormRow("If the template is missing") {
                     Text("Block project creation").foregroundStyle(.secondary)
                 }
@@ -147,25 +155,30 @@ struct PremiereTemplateView: View {
     // MARK: Status
 
     private var statusSection: some View {
-        let drive = app.premiere.volumeName.flatMap { app.drive(forPath: "/Volumes/\($0)") }
-        let template = app.selectedTemplate
-        let destinationExists = template?.nodes.allPaths.contains(app.premiere.destinationFolder) ?? false
+        let folderTemplate = app.selectedTemplate
+        let destinationExists = folderTemplate?.nodes.allPaths.contains(app.premiere.destinationFolder) ?? false
         let destination = app.premiere.destinationFolder.joined(separator: "/")
 
         return VStack(alignment: .leading, spacing: 8) {
             SectionHeader("Template Status")
             FormCard {
+                if template.url != nil {
+                    StatusCheckRow(
+                        title: "\(template.volumeName) drive",
+                        detail: template.state == .disconnected ? "Disconnected — template source" : "Connected — template source",
+                        kind: template.state == .disconnected ? .danger : .success
+                    )
+                }
                 StatusCheckRow(
-                    title: "\(volume) drive",
-                    detail: "\(drive?.status.label ?? "Unknown volume") — template source",
-                    kind: drive?.status.kind ?? .neutral
+                    title: "Template file",
+                    detail: template.problem(item: "Premiere template") ?? "Authorized and readable",
+                    kind: template.state.kind
                 )
-                StatusCheckRow(title: "Template file", detail: app.premiere.status.label, kind: app.premiere.status.kind)
                 StatusCheckRow(
                     title: "Destination folder",
                     detail: destinationExists
-                        ? "\(destination) exists in “\(template?.name ?? "")”"
-                        : "\(destination) isn’t in “\(template?.name ?? "")”",
+                        ? "\(destination) exists in “\(folderTemplate?.name ?? "")”"
+                        : "\(destination) isn’t in “\(folderTemplate?.name ?? "")”",
                     kind: destinationExists ? .success : .warning
                 )
                 outputCheck
@@ -174,10 +187,6 @@ struct PremiereTemplateView: View {
                     .foregroundStyle(.secondary)
                     .padding(Theme.rowPadding)
             }
-            Text("Drive and file checks run in a later phase.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 6)
         }
     }
 

@@ -144,7 +144,7 @@ struct FolderTemplateTests {
     }
 
     @Test func duplicateTemplateGetsNewIDsAndNoDefaults() throws {
-        let app = AppState(templateStore: nil)
+        let app = AppState(directory: nil)
         let source = try #require(app.templates.first)
         let copyID = try #require(app.duplicateTemplate(source.id))
         let copy = try #require(app.templates.first { $0.id == copyID })
@@ -156,7 +156,7 @@ struct FolderTemplateTests {
     }
 
     @Test func defaultProjectTypeAssignments() throws {
-        let app = AppState(templateStore: nil)
+        let app = AppState(directory: nil)
         let standard = app.templates[0], reels = app.templates[1]
 
         // Reels — Lite has no folders yet, so it can't be a default; Reels falls back to Standard Production.
@@ -177,7 +177,7 @@ struct FolderTemplateTests {
     }
 
     @Test func lastConfiguredTemplateCannotBeDeleted() {
-        let app = AppState(templateStore: nil)
+        let app = AppState(directory: nil)
         let standard = app.templates[0], reels = app.templates[1]
         #expect(!app.canRemoveTemplate(standard.id))
         app.removeTemplate(standard.id)
@@ -209,16 +209,16 @@ struct FolderTemplateStoreTests {
         let store = makeStore()
         defer { try? FileManager.default.removeItem(at: store.directory) }
 
-        let app = AppState(templateStore: store)
-        #expect(app.storageNotice == nil)
+        let app = AppState(directory: store.directory)
+        #expect(app.notice == nil)
         #expect(app.templates.map(\.name) == ["Standard Production", "Reels — Lite"])
         #expect(FileManager.default.fileExists(atPath: store.fileURL.path))
 
         app.renameTemplate(app.templates[0].id, to: "Sản xuất chuẩn")
         try app.updateTemplate(app.templates[0].id) { try $0.renameFolder($0.nodes[0].id, to: "01_Quay") }
 
-        let relaunched = AppState(templateStore: store)
-        #expect(relaunched.storageNotice == nil)
+        let relaunched = AppState(directory: store.directory)
+        #expect(relaunched.notice == nil)
         #expect(relaunched.templates == app.templates)
         #expect(relaunched.templates[0].name == "Sản xuất chuẩn")
         #expect(relaunched.templates[0].nodes[0].name == "01_Quay")
@@ -228,7 +228,7 @@ struct FolderTemplateStoreTests {
         let store = makeStore()
         defer { try? FileManager.default.removeItem(at: store.directory) }
 
-        let app = AppState(templateStore: store)
+        let app = AppState(directory: store.directory)
         app.renameTemplate(app.templates[0].id, to: "First edit")
         app.renameTemplate(app.templates[0].id, to: "Second edit")
         try Data("{ not json".utf8).write(to: store.fileURL)

@@ -29,7 +29,7 @@ struct SettingsView: View {
                 case .naming: naming
                 }
 
-                Text("Settings are kept in memory and reset when the app quits. Saving arrives in a later phase.")
+                Text("Settings are saved automatically.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 6)
@@ -60,7 +60,7 @@ struct SettingsView: View {
                     .frame(width: 220)
                 }
                 FormRow("Recent projects to keep") {
-                    Picker("Recent projects to keep", selection: $app.settings.recentProjectsLimit) {
+                    Picker("Recent projects to keep", selection: $app.settings.maximumRecentProjects) {
                         ForEach(AppSettings.recentLimitOptions, id: \.self) { Text("\($0) projects").tag($0) }
                     }
                     .labelsHidden()
@@ -72,9 +72,9 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader("After Creating a Project")
             FormCard {
-                ToggleRow("Reveal the new folder in Finder", isOn: $app.settings.revealInFinderAfterCreate)
-                ToggleRow("Open the Premiere project", isOn: $app.settings.openPremiereAfterCreate)
-                ToggleRow("Clear the project name for the next project", isOn: $app.settings.clearNameAfterCreate)
+                ToggleRow("Reveal the new folder in Finder", isOn: $app.settings.openFinderAfterCreation)
+                ToggleRow("Open the Premiere project", isOn: $app.settings.openPremiereAfterCreation)
+                ToggleRow("Clear the project name for the next project", isOn: $app.settings.clearProjectNameAfterCreation)
             }
         }
     }
@@ -83,12 +83,24 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var locations: some View {
+        let yearSuffix = app.settings.useYearFolderFromProjectDate ? "/{yyyy}" : ""
+
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader("Locations")
             FormCard {
-                locationRow("Default project destination", path: "\(app.settings.destinationBase)/{yyyy}")
-                locationRow("Premiere Pro master template", path: app.premiere.sourcePath)
+                locationRow(
+                    "Default project destination", item: "destination folder", resource: app.destination,
+                    path: (app.destination.url?.plainPath ?? "") + yearSuffix
+                ) { app.chooseDestination() }
+                locationRow(
+                    "Premiere Pro master template", item: "Premiere template", resource: app.premiereTemplate,
+                    path: app.premiereTemplate.url?.plainPath ?? "No template selected"
+                ) { app.choosePremiereTemplate() }
             }
+            Text("PKProjectCreator can only use a folder or file after you choose it here. A suggested location is just the expected path.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
         }
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader("External Volumes")
@@ -99,19 +111,21 @@ struct SettingsView: View {
                         Text(drive.name).bold()
                         Text(drive.role).foregroundStyle(.secondary)
                         Spacer()
-                        StatusLabel(text: drive.status.label, kind: drive.status.kind)
+                        StatusLabel(text: drive.state.label, kind: drive.state.kind)
                     }
                     .padding(Theme.rowPadding)
                 }
             }
-            Text("Volume checks and remembered drive permissions arrive in a later phase.")
+            Text("Each drive is watched separately and updates when it is connected or disconnected.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 6)
         }
     }
 
-    private func locationRow(_ title: String, path: String) -> some View {
+    private func locationRow(
+        _ title: String, item: String, resource: ResourceStatus, path: String, choose: @escaping () -> Void
+    ) -> some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
@@ -119,11 +133,18 @@ struct SettingsView: View {
                     .font(Theme.mono)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
+                StatusLabel(text: "\(resource.locationKind) · \(resource.state.label)", kind: resource.state.kind)
+                if let problem = resource.problem(item: item) {
+                    Text(problem)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             Spacer(minLength: 12)
-            Button("Choose…") {}
-                .disabled(true)
-                .help("Choosing locations arrives in a later phase.")
+            Button("Reveal in Finder") { app.revealInFinder(resource) }
+                .disabled(!resource.isReady)
+            Button(resource.chooseTitle, action: choose)
         }
         .padding(Theme.rowPadding)
     }

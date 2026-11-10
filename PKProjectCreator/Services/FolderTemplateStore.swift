@@ -27,7 +27,7 @@ struct FolderTemplateStore {
     var damagedURL: URL { directory.appending(path: "folder-templates.damaged.json") }
 
     /// Defaults to Application Support/PKProjectCreator (inside the app's sandbox container).
-    init(directory: URL = URL.applicationSupportDirectory.appending(path: "PKProjectCreator")) {
+    init(directory: URL = .appSupportFolder) {
         self.directory = directory
     }
 

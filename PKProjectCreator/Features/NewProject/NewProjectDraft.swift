@@ -89,6 +89,9 @@ extension AppState {
         return nil
     }
 
+    /// Folders only while the Premiere template isn't usable is confirmed first, so it is never an accident.
+    var needsFoldersOnlyConfirmation: Bool { !draft.createPremiere && !premiereTemplate.isReady }
+
     /// What the bottom bar says.
     var creationStatus: StatusMessage {
         if creationTask != nil { return StatusMessage(text: "Creating “\(generatedName)”…", kind: .neutral) }

@@ -24,5 +24,11 @@ Not done on purpose: created projects are still not added to Recent Projects; th
 `recent-projects.json` filled only by successful creations (no drive scanning; sample data removed); each record keeps a bookmark of the project folder and its volume identifier. Recent Projects: search, type filter, date sort, details, Reveal in Finder, Open in Premiere Pro, Copy Path, New Project Like This, Remove from List (metadata only, with confirmation), live status (available / drive disconnected / missing / permission needed) with Retry. Limit from Settings (default 20) keeps the newest. One `JSONFileStore` now gives settings, templates and recent projects the same schema version, atomic write, backup, damaged-file recovery and migration hook.
 Not done on purpose: the Copy Into folder choice on Premiere Template is still in memory only.
 
-## Phase 07 — Polish & distribution (recommended next)
+## After Phase 06 (user requests) ✅
+DaVinci Resolve template (copy `.drp`, set its project name; Working Folders left as in the master) and Update Project (add folders, rename/delete only empty folders, add a missing Premiere/Resolve file; never move or delete content). Merged to `main`.
+
+## Phase 07 — End-to-end testing, hardening & optimization ✅
+Full QA pass: Debug and Release builds without warnings, 86 tests, drive matrix A–K, scripted end-to-end run on a virtual drive, filesystem-safety review, performance check. Fixes: template folder names re-validated (no writing outside the project), non-recursive empty-folder removal, central plain-language file errors, folders-only confirmation when the Premiere template isn't ready, success dialog lists the Resolve file. See `QA_REPORT.md` and `MANUAL_TEST_CHECKLIST.md`.
+
+## Phase 08 — Polish & distribution (recommended next)
 - Reels — Lite hierarchy (once supplied; it can already be entered by hand in Folder Templates), keyboard shortcuts, accessibility pass, app icon, signing/notarization, DMG.

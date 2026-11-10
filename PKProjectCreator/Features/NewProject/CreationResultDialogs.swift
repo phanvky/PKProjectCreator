@@ -7,6 +7,7 @@ struct ProjectCreatedDialog: View {
     let projectName: String
     let directoryCount: Int
     let premiereFilename: String?
+    var resolveFilename: String?
     let location: String
     var onRevealInFinder: () -> Void = {}
     var onOpenInPremiere: () -> Void = {}
@@ -28,6 +29,9 @@ struct ProjectCreatedDialog: View {
                     InfoRow(label: "Folders", value: "\(directoryCount) directories created (project root + \(directoryCount - 1) folders)")
                     if let premiereFilename {
                         InfoRow(label: "Premiere", value: "1 file copied: \(premiereFilename)")
+                    }
+                    if let resolveFilename {
+                        InfoRow(label: "Resolve", value: "1 file copied: \(resolveFilename)")
                     }
                     InfoRow(label: "Location", value: location, monospaced: true)
                 }

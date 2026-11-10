@@ -213,3 +213,102 @@ struct ProjectCreationTests {
         #expect(app.creationTask == nil)
     }
 }
+
+/// Phase 07 hardening: names, path safety, error wording, non-recursive deletes.
+@MainActor
+struct HardeningTests {
+    private let files = FileManager.default
+
+    private func makeFolder() throws -> URL {
+        let url = files.temporaryDirectory.appending(path: "PKHardening-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try files.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    private func plan(_ name: String, in destination: URL, folders: [FolderNode] = FolderTemplate.standardProduction().nodes, premiere: Bool = false) throws -> ProjectCreationPlan {
+        let date = try #require(Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 11, day: 12, hour: 12)))
+        return ProjectCreationPlan(
+            date: date, type: .psc, projectName: name, templateID: UUID(), templateName: "Standard Production", folders: folders,
+            destinationFolderURL: destination, useYearFolder: false, createsPremiereProject: premiere, premiereFolder: ["04_Project", "Premiere Pro"]
+        )
+    }
+
+    @Test(arguments: ["Tùng & Thảo", "Lễ cưới (2) O'Neil - 12", "Café Đà Lạt 3"])
+    func vietnameseAndPunctuationAreKeptExactly(name: String) async throws {
+        let destination = try makeFolder(), work = try makeFolder()
+        defer { try? files.removeItem(at: destination); try? files.removeItem(at: work) }
+        let master = work.appending(path: "Master.prproj")
+        try Data("p".utf8).write(to: master)
+        let plan = try plan(name, in: destination, premiere: true)
+        #expect(plan.generatedName == "2026 - 11 - 12 PSC \(name)")
+
+        _ = try await ProjectCreationService().create(plan, in: destination, premiereTemplate: master)
+
+        let created = try files.contentsOfDirectory(atPath: destination.plainPath)
+        #expect(created.map { $0.precomposedStringWithCanonicalMapping } == [plan.generatedName.precomposedStringWithCanonicalMapping])
+        let premiere = try files.contentsOfDirectory(atPath: plan.projectFolder(in: destination).appending(path: "04_Project/Premiere Pro").plainPath)
+        #expect(premiere.map { $0.precomposedStringWithCanonicalMapping } == ["\(plan.generatedName).prproj".precomposedStringWithCanonicalMapping])
+    }
+
+    @Test(arguments: ["..", "a/b", "", "x:y"])
+    func aDamagedTemplateCantWriteOutsideTheProject(badName: String) async throws {
+        let destination = try makeFolder()
+        defer { try? files.removeItem(at: destination) }
+        let folders = [FolderNode("01_Footages", children: [FolderNode(badName)])]
+        await #expect(throws: ProjectCreationError.invalidFolderName("01_Footages/\(badName)")) {
+            _ = try await ProjectCreationService().create(try plan("Safe", in: destination, folders: folders), in: destination)
+        }
+        #expect(try files.contentsOfDirectory(atPath: destination.plainPath).isEmpty)
+        #expect(!files.fileExists(atPath: destination.deletingLastPathComponent().appending(path: "01_Footages").plainPath))
+    }
+
+    @Test func systemErrorsGetAPlainExplanation() {
+        #expect(FileErrorText.describe(CocoaError(.fileWriteOutOfSpace)).contains("enough free space"))
+        #expect(FileErrorText.describe(POSIXError(.ENOSPC)).contains("enough free space"))
+        #expect(FileErrorText.describe(CocoaError(.fileWriteNoPermission)).contains("reauthorize"))
+        #expect(FileErrorText.describe(POSIXError(.EROFS)).contains("read-only"))
+        let wrapped = NSError(domain: NSCocoaErrorDomain, code: 512, userInfo: [NSUnderlyingErrorKey: POSIXError(.ENOENT) as NSError])
+        #expect(FileErrorText.describe(wrapped).contains("disconnected"))
+        #expect(FileErrorText.describe(CocoaError(.fileWriteUnknown)).hasPrefix("A disk operation failed ("))
+        #expect(FileErrorText.describe(ProjectCreationError.cancelled) == ProjectCreationError.cancelled.localizedDescription)
+    }
+
+    @Test func emptyFolderRemovalIsNeverRecursive() throws {
+        let root = try makeFolder()
+        defer { try? files.removeItem(at: root) }
+        let empty = root.appending(path: "Empty"), full = root.appending(path: "Full"), nested = root.appending(path: "Nested")
+        for url in [empty, full, nested] { try files.createDirectory(at: url, withIntermediateDirectories: false) }
+        try Data().write(to: empty.appending(path: ".DS_Store"))
+        try Data("x".utf8).write(to: full.appending(path: "clip.mov"))
+        try files.createDirectory(at: nested.appending(path: "Inside"), withIntermediateDirectories: false)
+
+        try files.removeEmptyFolder(at: empty)
+        #expect(!files.fileExists(atPath: empty.plainPath))
+        #expect(throws: (any Error).self) { try files.removeEmptyFolder(at: full) }
+        #expect(throws: (any Error).self) { try files.removeEmptyFolder(at: nested) }
+        #expect(files.fileExists(atPath: full.appending(path: "clip.mov").plainPath))
+        #expect(files.fileExists(atPath: nested.appending(path: "Inside").plainPath))
+    }
+
+    @Test func copyFailureWithAFullDriveIsExplainedAndRolledBack() async throws {
+        let destination = try makeFolder(), work = try makeFolder()
+        defer { try? files.removeItem(at: destination); try? files.removeItem(at: work) }
+        let master = work.appending(path: "Master.prproj")
+        try Data("p".utf8).write(to: master)
+        let before = try Data(contentsOf: master)
+        let existing = destination.appending(path: "Older Project")
+        try files.createDirectory(at: existing, withIntermediateDirectories: false)
+        var service = ProjectCreationService()
+        // The drive fills up (or disappears) just as the Premiere file is copied.
+        service.willWrite = { url in if url.pathExtension == "prproj" { throw CocoaError(.fileWriteOutOfSpace) } }
+
+        do {
+            _ = try await service.create(try plan("Full Drive", in: destination, premiere: true), in: destination, premiereTemplate: master)
+            Issue.record("Expected a failure")
+        } catch let error as ProjectCreationError {
+            #expect(error.localizedDescription.contains("enough free space"))
+        }
+        #expect(try files.contentsOfDirectory(atPath: destination.plainPath) == ["Older Project"])
+        #expect(try Data(contentsOf: master) == before)
+    }
+}

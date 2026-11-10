@@ -73,7 +73,7 @@ nonisolated struct ProjectUpdateService: Sendable {
                 try body()
                 done.append(description)
             } catch {
-                let reason = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                let reason = FileErrorText.describe(error)
                 throw ProjectUpdateError.stopped(reason: "\(description): \(reason)", done: done)
             }
         }
@@ -118,7 +118,7 @@ nonisolated struct ProjectUpdateService: Sendable {
             let folder = Self.url(path, in: root)
             try step(folder, "Deleted the empty folder “\(Self.text(path))”") {
                 guard try Self.contents(of: folder).isEmpty else { throw Self.reason("it isn’t empty any more, so it was kept") }
-                try files.removeItem(at: folder)
+                try files.removeEmptyFolder(at: folder)
             }
         }
         return done

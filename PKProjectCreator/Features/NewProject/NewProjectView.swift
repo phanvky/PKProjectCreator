@@ -2,6 +2,7 @@ import SwiftUI
 
 struct NewProjectView: View {
     @Environment(AppState.self) private var app
+    @State private var isConfirmingFoldersOnly = false
 
     var body: some View {
         @Bindable var app = app
@@ -31,7 +32,9 @@ struct NewProjectView: View {
                 } else {
                     Button("Reset") { app.resetDraft() }
                 }
-                Button("Create Project") { app.createProject() }
+                Button("Create Project") {
+                    if app.needsFoldersOnlyConfirmation { isConfirmingFoldersOnly = true } else { app.createProject() }
+                }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
                     .disabled(app.creationBlocker != nil || app.creationTask != nil)
@@ -42,11 +45,17 @@ struct NewProjectView: View {
                 projectName: project.name,
                 directoryCount: project.directoryCount,
                 premiereFilename: project.premiereFilename,
+                resolveFilename: project.resolveProjectRelativePath.map { ($0 as NSString).lastPathComponent },
                 location: project.fullPath,
                 onRevealInFinder: { app.revealInFinder(project) },
                 onOpenInPremiere: { app.openInPremiere(project) },
                 onDone: { app.createdProject = nil }
             )
+        }
+        .confirmationDialog("Create folders only?", isPresented: $isConfirmingFoldersOnly) {
+            Button("Create Folders Only") { app.createProject() }
+        } message: {
+            Text("The Premiere template isn’t available, so this project will have no Premiere project. You can add it later with Recent Projects › Update Project.")
         }
         .navigationTitle("New Project")
         .navigationSubtitle(subtitle)

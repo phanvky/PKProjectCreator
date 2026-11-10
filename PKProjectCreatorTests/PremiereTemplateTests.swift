@@ -338,8 +338,10 @@ struct PremiereTemplateTests {
         #expect(app.destination.state == .authorized)
         #expect(app.creationBlocker?.text.contains("“WORK” is disconnected") == true)
         // Folders only stays possible while WORK is away, by the user's explicit choice.
+        #expect(!app.needsFoldersOnlyConfirmation)
         app.draft.createPremiere = false
         #expect(app.creationBlocker == nil)
+        #expect(app.needsFoldersOnlyConfirmation)
         app.draft.createPremiere = true
 
         system.mount("WORK", uuid: "WORK-UUID", at: "/Volumes/WORK")
@@ -347,7 +349,20 @@ struct PremiereTemplateTests {
         #expect(templateAfterRefresh() == "Ready to copy")
         #expect(app.destination.state == .disconnected)
         #expect(app.creationBlocker?.text.contains("“KIOXIA” is disconnected") == true)
+
+        // D: both drives away. Both are reported, and Create Project does nothing at all.
+        system.unmount("WORK")
+        #expect(templateAfterRefresh() == "WORK disconnected")
+        #expect(app.destination.state == .disconnected)
+        #expect(app.creationBlocker != nil)
+        app.createProject()
+        #expect(app.creationTask == nil)
+        system.mount("WORK", uuid: "WORK-UUID", at: "/Volumes/WORK")
         system.mount("KIOXIA", uuid: "KIOXIA-UUID", at: "/Volumes/KIOXIA")
+        // A: both back, everything ready again.
+        #expect(templateAfterRefresh() == "Ready to copy")
+        #expect(app.destination.state == .authorized)
+        #expect(app.creationBlocker == nil)
 
         system.staleBookmarks = true
         system.canMakeBookmarks = false

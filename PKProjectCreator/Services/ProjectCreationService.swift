@@ -3,6 +3,7 @@ import Foundation
 nonisolated enum ProjectCreationError: LocalizedError, Equatable {
     case invalidName(ProjectNameIssue)
     case templateNotConfigured(String)
+    case invalidFolderName(String)
     case premiereTemplateUnavailable
     case premiereFolderMissing(String)
     case premiere(PremiereTemplateError)
@@ -20,6 +21,7 @@ nonisolated enum ProjectCreationError: LocalizedError, Equatable {
         switch self {
         case .invalidName(let issue): issue.message
         case .templateNotConfigured(let name): "“\(name)” has no folders yet. Add its folders in Folder Templates."
+        case .invalidFolderName(let path): "The folder template has an invalid folder name at “\(path)”. Fix it in Folder Templates. Nothing was created."
         case .premiereTemplateUnavailable: "The Premiere master template isn’t available. Choose it on Premiere Template, or turn off “Create Premiere project from template” to create the folders only. Nothing was created."
         case .premiereFolderMissing(let path): "The folder template has no “\(path)” folder for the Premiere project. Choose another folder in Premiere Template › Copy Into. Nothing was created."
         case .premiere(let error): "The Premiere project couldn’t be created. \(error.localizedDescription)\n\nNothing was created, and the master template was not changed."
@@ -56,6 +58,7 @@ nonisolated struct ProjectCreationService: Sendable {
             throw ProjectCreationError.invalidName(issue)
         }
         guard !plan.folders.isEmpty, let templateID = plan.templateID else { throw ProjectCreationError.templateNotConfigured(plan.templateName) }
+        if let invalid = plan.folders.firstInvalidPath { throw ProjectCreationError.invalidFolderName(invalid.joined(separator: "/")) }
         // A plan that wants a Premiere project gets one or nothing: never a silent folders-only project.
         if let premiereFolder = plan.premiereFolder {
             guard plan.folders.allPaths.contains(premiereFolder) else {
@@ -129,7 +132,7 @@ nonisolated struct ProjectCreationService: Sendable {
             case is CancellationError: .cancelled
             case let known as ProjectCreationError: known
             case let premiere as PremiereTemplateError: .premiere(premiere)
-            default: files.fileExists(atPath: project.plainPath) ? .alreadyExists(plan.generatedName) : .failed(error.localizedDescription)
+            default: files.fileExists(atPath: project.plainPath) ? .alreadyExists(plan.generatedName) : .failed(FileErrorText.describe(error))
             }
             // Roll back only what this run made: the staging folder, and the year folder if it is still empty.
             if files.fileExists(atPath: staging.plainPath) {
@@ -139,9 +142,7 @@ nonisolated struct ProjectCreationService: Sendable {
                     throw ProjectCreationError.cleanupFailed(reason: reason.localizedDescription, leftover: staging.plainPath)
                 }
             }
-            if createsParent, (try? files.contentsOfDirectory(atPath: parent.plainPath))?.isEmpty == true {
-                try? files.removeItem(at: parent)
-            }
+            if createsParent { try? files.removeEmptyFolder(at: parent) }
             throw reason
         }
 

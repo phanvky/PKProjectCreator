@@ -67,7 +67,7 @@ nonisolated enum PremiereTemplateService {
         do {
             try files.copyItem(at: source, to: output)
         } catch {
-            throw PremiereTemplateError.copyFailed(error.localizedDescription)
+            throw PremiereTemplateError.copyFailed(FileErrorText.describe(error))
         }
         let sourceSize = (try? source.resourceValues(forKeys: [.fileSizeKey]))?.fileSize
         let outputSize = (try? output.resourceValues(forKeys: [.fileSizeKey]))?.fileSize
@@ -119,7 +119,7 @@ nonisolated enum ResolveProjectFile {
         } catch let error as PremiereTemplateError {
             throw error
         } catch {
-            throw PremiereTemplateError.resolveFileFailed(error.localizedDescription)
+            throw PremiereTemplateError.resolveFileFailed(FileErrorText.describe(error))
         }
     }
 

@@ -24,6 +24,8 @@ enum ResourceState: Equatable {
     case stale
     /// The volume is there, but the folder or file is gone.
     case missing
+    /// The file is there but isn't the right kind (wrong extension, or a folder).
+    case invalid
 
     var label: String {
         switch self {
@@ -33,6 +35,7 @@ enum ResourceState: Equatable {
         case .disconnected: "Disconnected"
         case .stale: "Permission expired"
         case .missing: "Not found"
+        case .invalid: "Not a valid file"
         }
     }
 
@@ -41,7 +44,7 @@ enum ResourceState: Equatable {
         case .notSelected: .neutral
         case .authorized: .success
         case .permissionUnavailable, .stale: .warning
-        case .disconnected, .missing: .danger
+        case .disconnected, .missing, .invalid: .danger
         }
     }
 }
@@ -61,7 +64,7 @@ struct ResourceStatus: Equatable {
 
     var chooseTitle: String {
         guard hasBookmark else { return "Choose…" }
-        return [.permissionUnavailable, .stale, .missing].contains(state) ? "Reauthorize…" : "Choose Another…"
+        return [.permissionUnavailable, .stale].contains(state) ? "Reauthorize…" : "Choose Another…"
     }
 
     /// What is wrong and what to do about it; nil when the resource is ready. `item` is e.g. "destination folder".
@@ -76,6 +79,20 @@ struct ResourceStatus: Equatable {
         case .disconnected: "“\(volumeName)” is disconnected, so the \(item) is unavailable."
         case .stale: "The saved permission for the \(item) has expired. Choose it again to reauthorize."
         case .missing: "The \(item) can’t be found on “\(volumeName)”."
+        case .invalid: "The \(item) isn’t a valid file. Choose another one."
+        }
+    }
+
+    /// The wording for the Premiere master template, e.g. "Ready to copy" or "WORK disconnected".
+    var templateLabel: String {
+        switch state {
+        case .notSelected: "Not selected"
+        case .authorized: "Ready to copy"
+        case .permissionUnavailable: hasBookmark ? "Permission denied" : "Permission needed"
+        case .disconnected: "\(volumeName) disconnected"
+        case .stale: "Bookmark stale"
+        case .missing: "Template missing"
+        case .invalid: "Invalid template file"
         }
     }
 }

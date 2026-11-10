@@ -40,9 +40,10 @@ struct NewProjectView: View {
             ProjectCreatedDialog(
                 projectName: project.name,
                 directoryCount: project.directoryCount,
-                premiereFilename: nil,
+                premiereFilename: project.premiereRelativePath.map { ($0 as NSString).lastPathComponent },
                 location: project.fullPath,
                 onRevealInFinder: { app.revealInFinder(project) },
+                onOpenInPremiere: { app.openInPremiere(project) },
                 onDone: { app.createdProject = nil }
             )
         }
@@ -240,7 +241,7 @@ private struct PremiereSection: View {
                 HStack {
                     Toggle("Create Premiere project from template", isOn: $app.draft.createPremiere)
                     Spacer(minLength: 12)
-                    StatusBadge(text: template.state.label, kind: template.state.kind)
+                    StatusBadge(text: template.templateLabel, kind: template.state.kind)
                 }
                 .padding(Theme.rowPadding)
 

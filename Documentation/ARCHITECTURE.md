@@ -25,7 +25,8 @@ PKProjectCreator/
   Services/       FolderTemplateStore (folder-templates.json: load, save, backup, recovery),
                   SettingsStore (settings.json), FileAccessService (bookmarks, access, resource checks;
                   ResourceAccess protocol + SystemResourceAccess; OpenPanels),
-                  ProjectCreationService (staging folder → rename; ProjectCreationError)
+                  ProjectCreationService (staging folder → rename; ProjectCreationError),
+                  PremiereTemplateService (validate, copy and verify the master; PremiereTemplateError)
   Shared/
     Components/   FolderTreeView (used by New Project preview and the template editor)
     Utilities/    ProjectNameGenerator (name format + validation + destination), FolderNaming (folder-name rules,
@@ -55,8 +56,12 @@ Documentation/           Specs, plan, DesignReferences/
 
 ## Project creation
 - `AppState.creationPlan` builds one immutable `ProjectCreationPlan` from the draft, settings, selected template and destination. `FolderPreviewPanel`, the paths on New Project and `ProjectCreationService` all read that plan; no view computes a folder structure of its own.
-- `AppState.creationBlocker` is the single list of reasons Create Project is disabled (bad name, unconfigured template, destination not ready, Premiere phase gate). The service repeats the checks that matter before touching the disk.
+- `AppState.creationBlocker` is the single list of reasons Create Project is disabled (bad name, unconfigured template, destination not ready, Premiere template not ready or its Copy Into folder missing from the folder template). The service repeats the checks that matter before touching the disk.
 - `AppState.createProject()` runs `FileAccessService.withAccess(to:)` (async form) on the main actor, which keeps security-scoped access open while `ProjectCreationService.create` — `nonisolated`, `@concurrent` — does the disk work off the main actor. Cancelling the task makes the service stop, clean up and throw `.cancelled`.
+- With Premiere on, `createProject()` nests a second `withAccess` for the template bookmark inside the destination one, so both permissions stay open for the whole creation. `ProjectCreationService` validates the master before writing anything, then calls `PremiereTemplateService.copy` into the staging tree after the folders and before the final rename.
+- The output name comes from `PremiereTemplateService.outputFilename(for: plan.generatedName)`; `ProjectCreationPlan.premiereOutputRelativePath` uses the same function, so preview and result can't differ.
+- `FileAccessService.check(..., fileExtension:)` adds the file checks (extension, regular file, readable) for the template; `ResourceStatus.templateLabel` gives the Premiere wording.
+- `AppState.openInPremiere` reopens the destination's security scope, asks `NSWorkspace.urlForApplication(toOpen:)` for the registered app and opens the file with it. Errors only set `notice`.
 - The service receives the URL macOS resolved from the bookmark and places the plan's relative parts (year folder, project name) under it; it never rebuilds a path from saved text.
 - `FolderNode`, `ProjectCreationPlan`, `RecentProject` and the name / folder rules are `nonisolated` and `Sendable` so they can cross to the background.
 

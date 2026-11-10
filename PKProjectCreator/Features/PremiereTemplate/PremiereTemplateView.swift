@@ -26,7 +26,7 @@ struct PremiereTemplateView: View {
     private var template: ResourceStatus { app.premiereTemplate }
 
     private var subtitle: String {
-        template.state == .notSelected ? "No template selected" : "Template on \(template.volumeName) · \(template.state.label)"
+        template.state == .notSelected ? "No template selected" : "Template on \(template.volumeName) · \(template.templateLabel)"
     }
 
     // MARK: Source
@@ -58,7 +58,7 @@ struct PremiereTemplateView: View {
                         }
                     }
                     Spacer(minLength: 12)
-                    StatusBadge(text: template.state.label, kind: template.state.kind)
+                    StatusBadge(text: template.templateLabel, kind: template.state.kind)
                 }
                 .padding(16)
 
@@ -171,7 +171,7 @@ struct PremiereTemplateView: View {
                 }
                 StatusCheckRow(
                     title: "Template file",
-                    detail: template.problem(item: "Premiere template") ?? "Authorized and readable",
+                    detail: template.isReady ? "Template found · ready to copy" : "\(template.templateLabel). \(template.problem(item: "Premiere template") ?? "")",
                     kind: template.state.kind
                 )
                 StatusCheckRow(

@@ -3,7 +3,9 @@ import Foundation
 nonisolated enum ProjectCreationError: LocalizedError, Equatable {
     case invalidName(ProjectNameIssue)
     case templateNotConfigured(String)
-    case premiereNotAvailable
+    case premiereTemplateUnavailable
+    case premiereFolderMissing(String)
+    case premiere(PremiereTemplateError)
     case destinationUnavailable(String)
     case destinationNotWritable(String)
     case alreadyExists(String)
@@ -15,38 +17,51 @@ nonisolated enum ProjectCreationError: LocalizedError, Equatable {
         switch self {
         case .invalidName(let issue): issue.message
         case .templateNotConfigured(let name): "“\(name)” has no folders yet. Add its folders in Folder Templates."
-        case .premiereNotAvailable: "Creating the Premiere project isn’t available yet. Turn off “Create Premiere project from template” to create the folders only."
+        case .premiereTemplateUnavailable: "The Premiere master template isn’t available. Choose it on Premiere Template, or turn off “Create Premiere project from template” to create the folders only. Nothing was created."
+        case .premiereFolderMissing(let path): "The folder template has no “\(path)” folder for the Premiere project. Choose another folder in Premiere Template › Copy Into. Nothing was created."
+        case .premiere(let error): "The Premiere project couldn’t be created. \(error.localizedDescription)\n\nNothing was created, and the master template was not changed."
         case .destinationUnavailable(let path): "The destination folder can’t be reached:\n\(path)\n\nNothing was created."
         case .destinationNotWritable(let path): "PKProjectCreator isn’t allowed to create folders in:\n\(path)\n\nChoose the destination again to reauthorize it. Nothing was created."
         case .alreadyExists(let name): "A project named “\(name)” already exists in the destination. It was not changed. Use a different name or date."
         case .cancelled: "Project creation was cancelled. Nothing was created."
-        case .failed(let reason): "The project couldn’t be created: \(reason)\n\nNothing was left behind."
+        case .failed(let reason): "The project couldn’t be created: \(reason)\n\nNothing was left behind, and the master template was not changed."
         case .cleanupFailed(let reason, let leftover): "The project couldn’t be created: \(reason)\n\nA temporary folder couldn’t be removed. You can delete it yourself:\n\(leftover)"
         }
     }
 }
 
-/// Creates a project folder from a plan. The folder tree is built in a hidden staging folder next to the final
+/// Creates a project folder, and the Premiere project inside it, from a plan. The folder tree is built in a hidden staging folder next to the final
 /// location (same volume) and renamed into place only when everything succeeded, so a failure never leaves a
 /// half-made project and an existing project is never overwritten or merged into.
 nonisolated struct ProjectCreationService: Sendable {
     static let stagingPrefix = ".PKProjectCreator-Staging-"
 
-    /// Called just before each folder is created. Tests use it to inject a failure or a cancellation.
-    var willCreateFolder: @Sendable (URL) throws -> Void = { _ in }
+    /// Called just before each folder is created and before the Premiere copy. Tests use it to inject a
+    /// failure or a cancellation.
+    var willWrite: @Sendable (URL) throws -> Void = { _ in }
 
-    /// `destination` must be the URL macOS granted access to (see `FileAccessService.withAccess`), not a path
-    /// rebuilt from text. Runs off the main actor.
+    /// `destination` and `premiereTemplate` must be the URLs macOS granted access to (see
+    /// `FileAccessService.withAccess`), not paths rebuilt from text. Runs off the main actor.
     @concurrent
-    func create(_ plan: ProjectCreationPlan, in destination: URL) async throws -> RecentProject {
+    func create(_ plan: ProjectCreationPlan, in destination: URL, premiereTemplate: URL? = nil) async throws -> RecentProject {
         let files = FileManager.default
 
         if let issue = ProjectNameGenerator.issue(forProjectName: plan.projectName, generatedName: plan.generatedName) {
             throw ProjectCreationError.invalidName(issue)
         }
         guard !plan.folders.isEmpty else { throw ProjectCreationError.templateNotConfigured(plan.templateName) }
-        // Phase gate: copying the Premiere template arrives in Phase 05. Never pretend it was created.
-        guard !plan.createsPremiereProject else { throw ProjectCreationError.premiereNotAvailable }
+        // A plan that wants a Premiere project gets one or nothing: never a silent folders-only project.
+        if let premiereFolder = plan.premiereFolder {
+            guard plan.folders.allPaths.contains(premiereFolder) else {
+                throw ProjectCreationError.premiereFolderMissing(premiereFolder.joined(separator: "/"))
+            }
+            guard let premiereTemplate else { throw ProjectCreationError.premiereTemplateUnavailable }
+            do {
+                try PremiereTemplateService.validate(premiereTemplate)
+            } catch let error as PremiereTemplateError {
+                throw ProjectCreationError.premiere(error)
+            }
+        }
 
         var isDirectory: ObjCBool = false
         guard files.fileExists(atPath: destination.plainPath, isDirectory: &isDirectory), isDirectory.boolValue else {
@@ -68,8 +83,14 @@ nonisolated struct ProjectCreationService: Sendable {
             for path in plan.folders.allPaths {
                 try Task.checkCancellation()
                 let folder = path.reduce(staging) { $0.appending(path: $1, directoryHint: .isDirectory) }
-                try willCreateFolder(folder)
+                try willWrite(folder)
                 try files.createDirectory(at: folder, withIntermediateDirectories: false)
+            }
+            if let premiereFolder = plan.premiereFolder, let premiereTemplate {
+                try Task.checkCancellation()
+                let folder = premiereFolder.reduce(staging) { $0.appending(path: $1, directoryHint: .isDirectory) }
+                try willWrite(folder.appending(path: PremiereTemplateService.outputFilename(for: plan.generatedName)))
+                try PremiereTemplateService.copy(premiereTemplate, into: folder, generatedName: plan.generatedName)
             }
             try Task.checkCancellation()
             // A rename within one folder: it fails rather than replace anything that appeared meanwhile.
@@ -78,6 +99,7 @@ nonisolated struct ProjectCreationService: Sendable {
             let reason: ProjectCreationError = switch error {
             case is CancellationError: .cancelled
             case let known as ProjectCreationError: known
+            case let premiere as PremiereTemplateError: .premiere(premiere)
             default: files.fileExists(atPath: project.plainPath) ? .alreadyExists(plan.generatedName) : .failed(error.localizedDescription)
             }
             // Roll back only what this run made: the staging folder, and the year folder if it is still empty.
@@ -96,7 +118,8 @@ nonisolated struct ProjectCreationService: Sendable {
 
         return RecentProject(
             date: plan.date, type: plan.type, projectName: plan.projectName, templateName: plan.templateName,
-            directoryCount: plan.directoryCount, premiere: .foldersOnly, parentFolder: parent.plainPath
+            directoryCount: plan.directoryCount, premiere: plan.createsPremiereProject ? .linked : .foldersOnly,
+            parentFolder: parent.plainPath, premiereRelativePath: plan.premiereOutputRelativePath
         )
     }
 }

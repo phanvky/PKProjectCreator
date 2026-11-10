@@ -67,8 +67,16 @@ Fields: `defaultProjectType`, `defaultDestinationURL`, `destinationBookmarkData`
 - An existing project is never overwritten and never merged into: if a folder with the generated name already exists (letter case ignored, as on Mac volumes), creation is refused.
 - Creation is all-or-nothing. The tree is built in a hidden staging folder (`.PKProjectCreator-Staging-{UUID}`) next to the final location and renamed into place only at the end. On failure or cancellation the staging folder is removed, a year folder made by this run is removed if still empty, and nothing else is touched. If the staging folder can't be removed, the error says where it is.
 - Checked before anything is written: project name, template has folders, destination authorized, reachable and writable, no duplicate.
-- Until the Premiere copy exists (Phase 05), creation with "Create Premiere project from template" on is blocked; a Premiere project is never reported as created when it wasn't.
-- Safe manual test: make an empty folder (e.g. `PK Test` on the Desktop), choose it as the destination with **Choose Another…**, turn off "Create Premiere project from template", type a name, click **Create Project**. Afterwards choose the real destination again and delete `PK Test`.
+- With "Create Premiere project from template" on, the project gets the Premiere copy or is not created at all. It never silently falls back to folders only; folders only happens only when the user turns that option off.
+- Safe manual test: make an empty folder (e.g. `PK Test` on the Desktop), choose it as the destination with **Choose Another…**, type a name, click **Create Project**. Check the 18 folders and `04_Project/Premiere Pro/{Generated Name}.prproj` in Finder. Afterwards choose the real destination (`EVENT`) again and delete `PK Test`.
+
+## Premiere template copy
+- The master is the `.prproj` the user chose and authorized (read-only) on Premiere Template; the suggested WORK path is never used without that.
+- It is copied into the project's Copy Into folder (default `04_Project/Premiere Pro/`) as `{Generated Name}.prproj`, the same generated name as the project folder, during creation and before the project is moved into place.
+- The copy is checked (same size, same bytes). If anything fails, the whole project is rolled back and the error says what to do.
+- The master is only ever read: never renamed, moved, deleted, modified, or given new metadata. Its bookmark is read-only, so macOS itself would refuse a write.
+- Template states: Ready to copy · Template missing · {drive} disconnected · Permission denied / needed · Bookmark stale · Invalid template file (wrong extension or a folder) · Not selected. They are independent of the destination drive.
+- Open in Premiere Pro (after creating, or from the success dialog) opens the copy with the app macOS has registered for `.prproj`. If there is none or it fails to launch, the user is told; the project is kept.
 
 ## Missing Premiere template policy
 Block creation until the template is available. Creating folders only requires the user to explicitly turn off "Create Premiere project from template". Incomplete projects are never created silently.

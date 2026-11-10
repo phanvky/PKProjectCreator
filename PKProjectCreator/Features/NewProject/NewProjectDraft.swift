@@ -61,11 +61,13 @@ extension AppState {
             if let problem = premiereTemplate.problem(item: "Premiere template") {
                 return StatusMessage(text: "\(problem) Or turn off “Create Premiere project from template”.", kind: .warning)
             }
-            // Phase gate: remove once the Premiere template copy exists (Phase 05).
-            return StatusMessage(
-                text: "Creating the Premiere project isn’t available yet. Turn off “Create Premiere project from template” to create the folders only.",
-                kind: .warning
-            )
+            let folder = premiere.destinationFolder
+            if let template = selectedTemplate, !template.nodes.allPaths.contains(folder) {
+                return StatusMessage(
+                    text: "“\(template.name)” has no “\(folder.joined(separator: "/"))” folder for the Premiere project. Choose another folder in Premiere Template › Copy Into.",
+                    kind: .warning
+                )
+            }
         }
         return nil
     }
@@ -75,7 +77,10 @@ extension AppState {
         if creationTask != nil { return StatusMessage(text: "Creating “\(generatedName)”…", kind: .neutral) }
         let plan = creationPlan
         return creationBlocker ?? StatusMessage(
-            text: "Ready to create \(plan.directoryCount) folders in \(plan.yearFolderURL.lastPathComponent).", kind: .success
+            text: plan.createsPremiereProject
+                ? "Ready to create \(plan.directoryCount) folders and the Premiere project in \(plan.yearFolderURL.lastPathComponent)."
+                : "Ready to create \(plan.directoryCount) folders in \(plan.yearFolderURL.lastPathComponent).",
+            kind: .success
         )
     }
 }

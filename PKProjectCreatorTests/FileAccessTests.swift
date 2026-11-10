@@ -9,6 +9,10 @@ final class FakeSystem: ResourceAccess {
     var volumes: [MountedVolume] = []
     var existingPaths: Set<String> = []
     var deniedPaths: Set<String> = []
+    /// Existing items that are folders rather than files.
+    var directoryPaths: Set<String> = []
+    /// Present, but the app may not read them (like a file with no read permission).
+    var unreadablePaths: Set<String> = []
     var staleBookmarks = false
     var canMakeBookmarks = true
     private(set) var accessBalance = 0
@@ -41,6 +45,8 @@ final class FakeSystem: ResourceAccess {
 
     func stopAccessing(_ url: URL) { accessBalance -= 1 }
     func isReachable(_ url: URL) -> Bool { existingPaths.contains(url.plainPath) }
+    func isRegularFile(_ url: URL) -> Bool { existingPaths.contains(url.plainPath) && !directoryPaths.contains(url.plainPath) }
+    func isReadable(_ url: URL) -> Bool { !unreadablePaths.contains(url.plainPath) }
     func volume(of url: URL) -> VolumeIdentity? { volumes.first { $0.contains(url) }?.identity }
     func mountedVolumes() -> [MountedVolume] { volumes }
 }

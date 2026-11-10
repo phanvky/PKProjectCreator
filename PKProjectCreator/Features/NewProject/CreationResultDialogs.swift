@@ -1,6 +1,6 @@
 import SwiftUI
 
-// ProjectCreatedDialog is shown by New Project after a project is created.
+// ProjectCreatedDialog is shown by New Project after a project is created (with or without a Premiere project).
 // DriveNotConnectedDialog is still design-only (Xcode Previews): a disconnected drive disables Create Project instead.
 
 struct ProjectCreatedDialog: View {

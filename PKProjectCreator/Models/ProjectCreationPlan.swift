@@ -16,6 +16,8 @@ nonisolated struct ProjectCreationPlan: Equatable, Sendable {
     /// The folders to create inside the project root, exactly as the selected template has them.
     let folders: [FolderNode]
     let createsPremiereProject: Bool
+    /// The folder inside the project that receives the copy, e.g. `["04_Project", "Premiere Pro"]`; nil when Premiere is off.
+    let premiereFolder: [String]?
     /// e.g. `04_Project/Premiere Pro/2026 - 11 - 12 Event Develon.prproj`; nil when Premiere is off.
     let premiereOutputRelativePath: String?
 
@@ -36,7 +38,10 @@ nonisolated struct ProjectCreationPlan: Equatable, Sendable {
         self.destinationFolderURL = destinationFolderURL
         yearFolderName = useYearFolder ? ProjectNameGenerator.year(for: date) : nil
         self.createsPremiereProject = createsPremiereProject
-        premiereOutputRelativePath = createsPremiereProject ? (premiereFolder + ["\(name).prproj"]).joined(separator: "/") : nil
+        self.premiereFolder = createsPremiereProject ? premiereFolder : nil
+        premiereOutputRelativePath = createsPremiereProject
+            ? (premiereFolder + [PremiereTemplateService.outputFilename(for: name)]).joined(separator: "/")
+            : nil
     }
 
     /// The folder that will contain the project: the destination, or its year folder.

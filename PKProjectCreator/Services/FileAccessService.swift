@@ -25,6 +25,8 @@ protocol ResourceAccess {
     func startAccessing(_ url: URL) -> Bool
     func stopAccessing(_ url: URL)
     func isReachable(_ url: URL) -> Bool
+    func isRegularFile(_ url: URL) -> Bool
+    func isReadable(_ url: URL) -> Bool
     func volume(of url: URL) -> VolumeIdentity?
     func mountedVolumes() -> [MountedVolume]
 }
@@ -44,6 +46,8 @@ struct SystemResourceAccess: ResourceAccess {
     func startAccessing(_ url: URL) -> Bool { url.startAccessingSecurityScopedResource() }
     func stopAccessing(_ url: URL) { url.stopAccessingSecurityScopedResource() }
     func isReachable(_ url: URL) -> Bool { (try? url.checkResourceIsReachable()) == true }
+    func isRegularFile(_ url: URL) -> Bool { (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true }
+    func isReadable(_ url: URL) -> Bool { FileManager.default.isReadableFile(atPath: url.plainPath) }
 
     func volume(of url: URL) -> VolumeIdentity? {
         guard let values = try? url.resourceValues(forKeys: [.volumeUUIDStringKey, .volumeNameKey]), let name = values.volumeName else { return nil }
@@ -62,8 +66,8 @@ enum FileAccessError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .cannotResolve: "The saved location can’t be found."
-        case .permissionDenied: "macOS didn’t allow access to the saved location."
+        case .cannotResolve: "A saved location can’t be found. Check that its drive is connected, or choose it again."
+        case .permissionDenied: "macOS didn’t allow access to a saved location. Choose it again to reauthorize it."
         }
     }
 }
@@ -107,7 +111,8 @@ struct FileAccessService {
 
     /// The current state of one resource. A path that merely looks right is never reported as ready:
     /// only a bookmark that resolves, grants access and points at something that exists is `.authorized`.
-    func check(bookmark: Data?, lastKnownURL: URL?, volume: VolumeIdentity?, readOnly: Bool) -> Check {
+    /// With `fileExtension`, the resource must be a regular, readable file with that extension.
+    func check(bookmark: Data?, lastKnownURL: URL?, volume: VolumeIdentity?, readOnly: Bool, fileExtension: String? = nil) -> Check {
         var status = ResourceStatus(
             url: lastKnownURL,
             volumeName: volume?.name ?? lastKnownURL?.plainPath.volumeName ?? "This Mac",
@@ -132,6 +137,16 @@ struct FileAccessService {
                 guard system.isReachable(url) else {
                     status.state = .missing
                     return Check(status: status, volume: currentVolume)
+                }
+                if let fileExtension {
+                    guard url.pathExtension.lowercased() == fileExtension, system.isRegularFile(url) else {
+                        status.state = .invalid
+                        return Check(status: status, volume: currentVolume)
+                    }
+                    guard system.isReadable(url) else {
+                        status.state = .permissionUnavailable
+                        return Check(status: status, volume: currentVolume)
+                    }
                 }
                 let renewed = isStale ? try? system.makeBookmark(for: url, readOnly: readOnly) : nil
                 status.state = isStale && renewed == nil ? .stale : .authorized

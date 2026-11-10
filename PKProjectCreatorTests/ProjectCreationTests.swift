@@ -115,7 +115,7 @@ struct ProjectCreationTests {
     @Test func failureCleansUpStagingAndKeepsOtherData() async throws {
         let destination = try makeDestination()
         defer { try? files.removeItem(at: destination) }
-        let service = ProjectCreationService(willCreateFolder: { folder in
+        let service = ProjectCreationService(willWrite: { folder in
             if folder.lastPathComponent == "04_Project" { throw InjectedFailure() }
         })
 
@@ -136,7 +136,7 @@ struct ProjectCreationTests {
     @Test func cancellationLeavesNothingBehind() async throws {
         let destination = try makeDestination()
         defer { try? files.removeItem(at: destination) }
-        let service = ProjectCreationService(willCreateFolder: { folder in
+        let service = ProjectCreationService(willWrite: { folder in
             if folder.lastPathComponent == "03_SFX" { withUnsafeCurrentTask { $0?.cancel() } }
         })
 
@@ -158,8 +158,8 @@ struct ProjectCreationTests {
             let failure = await error { _ = try await service.create(try plan(in: destination, name: name), in: destination) }
             guard case .invalidName = failure else { Issue.record("“\(name)” was not refused"); continue }
         }
-        // Phase gate: Premiere copying isn't implemented, so a plan that wants it is refused, never faked.
-        #expect(await error { _ = try await service.create(try plan(in: destination, premiere: true), in: destination) } == .premiereNotAvailable)
+        // A plan that wants a Premiere project but has no template is refused, never turned into folders only.
+        #expect(await error { _ = try await service.create(try plan(in: destination, premiere: true), in: destination) } == .premiereTemplateUnavailable)
         #expect(await error { _ = try await service.create(try plan(in: destination, folders: []), in: destination) } == .templateNotConfigured("Standard Production"))
         #expect(try files.contentsOfDirectory(atPath: destination.plainPath).isEmpty)
 
@@ -176,8 +176,8 @@ struct ProjectCreationTests {
         app.draft.date = try date(2026, 11, 12)
         app.draft.projectName = "Develon"
 
-        // With Premiere on, creation stays blocked until Phase 05.
-        #expect(app.creationBlocker?.text.contains("Premiere") == true)
+        // With Premiere on and no template chosen, creation is blocked.
+        #expect(app.creationBlocker?.text.contains("Premiere template") == true)
         app.createProject()
         #expect(app.creationTask == nil)
 

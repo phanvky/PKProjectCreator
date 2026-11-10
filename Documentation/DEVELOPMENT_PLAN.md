@@ -16,13 +16,13 @@ Not done on purpose: no project creation and no Premiere copy yet; the "Copy Int
 `ProjectNameGenerator` (renamed from `ProjectNaming`); immutable `ProjectCreationPlan` shared by the preview and the creation; `ProjectCreationService` builds the folder tree in a staging folder and renames it into place (never overwrites, never merges, cleans up on failure or cancellation); New Project creates real folders with progress, Cancel, duplicate / permission errors and the success dialog; `RecentProject` is Codable, ready for saving.
 Not done on purpose: no Premiere copy. While "Create Premiere project from template" is on, Create Project is disabled and says why; folders-only creation needs it turned off. Created projects are not added to Recent Projects yet (that list is still sample data).
 
-## Phase 05 — Premiere template copy (recommended next)
-- Copy the `.prproj` into the staging folder before the final rename (copy, never modify the source), named `[Generated Name].prproj`, inside the "Copy Into" folder.
-- Remove the phase gate in `AppState.creationBlocker` and `ProjectCreationService.create`.
-- Open in Premiere Pro after creating.
+## Phase 05 — Premiere Pro template engine ✅
+`PremiereTemplateService` validates the master (exists, regular file, readable, `.prproj`), copies it into the staging project's Copy Into folder as `{Generated Name}.prproj` and verifies the copy byte for byte; the copy is one step of the Phase 04 transaction, so a failed copy leaves nothing behind. Template states (ready to copy, missing, drive disconnected, permission denied, bookmark stale, invalid file) are tracked independently of the destination drive. Open in Premiere Pro uses the app macOS has registered for `.prproj`; a launch failure is only reported. The Phase 04 gate is removed.
+Not done on purpose: created projects are still not added to Recent Projects; the Copy Into folder choice is still in memory only.
 
-## Phase 06 — Recent projects persistence
-- Recent projects list (limit from Settings), verify each path on launch.
+## Phase 06 — Recent projects persistence (recommended next)
+- Recent projects list (limit from Settings), verify each path on launch; save the `RecentProject` returned by each creation.
+- Save the Copy Into folder choice.
 
 ## Phase 07 — Polish & distribution
 - Reels — Lite hierarchy (once supplied; it can already be entered by hand in Folder Templates), keyboard shortcuts, accessibility pass, app icon, signing/notarization, DMG.

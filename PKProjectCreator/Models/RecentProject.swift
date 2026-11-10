@@ -19,6 +19,8 @@ nonisolated struct RecentProject: Identifiable, Hashable, Codable, Sendable {
     var premiere: PremiereLink
     /// Folder that contains the project folder.
     var parentFolder: String
+    /// e.g. `04_Project/Premiere Pro/2026 - 11 - 12 Event Develon.prproj`; nil when no Premiere project was made.
+    var premiereRelativePath: String? = nil
 
     var name: String {
         ProjectNameGenerator.generatedName(date: date, type: type, projectName: projectName)

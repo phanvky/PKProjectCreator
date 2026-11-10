@@ -68,20 +68,56 @@ final class AppState {
     /// Creates the project described by `creationPlan`. The disk work runs off the main actor, inside the
     /// access macOS granted for the destination folder.
     func createProject() {
-        guard creationTask == nil, creationBlocker == nil, let bookmark = settings.destinationBookmarkData else { return }
+        guard creationTask == nil, creationBlocker == nil, let destinationBookmark = settings.destinationBookmarkData else { return }
         let plan = creationPlan
+        let templateBookmark = plan.createsPremiereProject ? settings.premiereTemplateBookmarkData : nil
+        guard !plan.createsPremiereProject || templateBookmark != nil else { return }
+
         creationTask = Task {
             defer { creationTask = nil }
             do {
-                let project = try await fileAccess.withAccess(to: bookmark) { url, _ in
-                    try await creationService.create(plan, in: url)
+                // KIOXIA and WORK are separate permissions; both stay open until the creation has finished.
+                let project = try await fileAccess.withAccess(to: destinationBookmark) { destination, _ in
+                    guard let templateBookmark else {
+                        return try await creationService.create(plan, in: destination)
+                    }
+                    return try await fileAccess.withAccess(to: templateBookmark) { template, _ in
+                        try await creationService.create(plan, in: destination, premiereTemplate: template)
+                    }
                 }
                 createdProject = project
                 if settings.clearProjectNameAfterCreation { draft.projectName = "" }
                 if settings.openFinderAfterCreation { revealInFinder(project) }
+                if settings.openPremiereAfterCreation { openInPremiere(project) }
             } catch {
                 notice = error.localizedDescription
                 refreshResources()
+            }
+        }
+    }
+
+    /// Opens the project's `.prproj` with the app macOS has registered for it. A failure here is only
+    /// reported: the project itself was created and stays.
+    func openInPremiere(_ project: RecentProject) {
+        guard let relativePath = project.premiereRelativePath, let bookmark = settings.destinationBookmarkData else { return }
+        let file = URL(filePath: project.fullPath, directoryHint: .isDirectory).appending(path: relativePath, directoryHint: .notDirectory)
+        let kept = "The project was created and has not been changed."
+        Task {
+            do {
+                try await fileAccess.withAccess(to: bookmark) { _, _ in
+                    guard let app = NSWorkspace.shared.urlForApplication(toOpen: file) else {
+                        notice = "No app on this Mac is set to open .prproj files, so “\(file.lastPathComponent)” wasn’t opened. Install Adobe Premiere Pro, or open the file from Finder. \(kept)"
+                        return
+                    }
+                    do {
+                        _ = try await NSWorkspace.shared.open([file], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+                    } catch {
+                        let name = FileManager.default.displayName(atPath: app.path(percentEncoded: false))
+                        notice = "“\(file.lastPathComponent)” couldn’t be opened in \(name): \(error.localizedDescription) \(kept)"
+                    }
+                }
+            } catch {
+                notice = "“\(file.lastPathComponent)” couldn’t be opened: \(error.localizedDescription) \(kept)"
             }
         }
     }
@@ -216,7 +252,8 @@ final class AppState {
 
         let templateCheck = fileAccess.check(
             bookmark: updated.premiereTemplateBookmarkData, lastKnownURL: updated.premiereTemplateURL,
-            volume: updated.premiereTemplateVolume, readOnly: true
+            volume: updated.premiereTemplateVolume, readOnly: true,
+            fileExtension: PremiereTemplateService.fileExtension
         )
         if premiereTemplate != templateCheck.status { premiereTemplate = templateCheck.status }
         updated.premiereTemplateBookmarkData = templateCheck.renewedBookmark ?? updated.premiereTemplateBookmarkData

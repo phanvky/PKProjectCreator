@@ -1,3 +1,8 @@
+# PKProjectCreator 1.0.1 (build 2) — 2026-11-10
+
+- App icon: the approved PHANKY "Creator Project" artwork, fitted to the macOS icon grid (824 px tile in 1024, transparent rounded corners) in all ten sizes. The supplied square artwork had a solid black background, which would have shown as black corners.
+- No other changes.
+
 # PKProjectCreator 1.0.0 (build 1) — 2026-11-10
 
 First release for PHANKY FILM. Offline macOS app (Apple Silicon, macOS 26+) that creates video project folders from templates.
@@ -17,7 +22,6 @@ The master templates are only read. Deleting happens only for the app's own temp
 
 ## Known limitations
 - Not notarized and ad-hoc signed: on another Mac, Gatekeeper requires **Open Anyway** once (see INSTALLATION.md).
-- No custom app icon yet (no approved artwork); the system default icon is shown.
 - The Copy Into folder choice (Premiere and Resolve) isn't saved between launches.
 - Recent Projects shows Premiere status but not the Resolve file.
 - A duplicate project name is reported when Create Project is clicked, not while typing.

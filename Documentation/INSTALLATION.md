@@ -1,4 +1,4 @@
-# Cài đặt PKProjectCreator 1.0.0
+# Cài đặt PKProjectCreator 1.0.1
 
 Yêu cầu: máy Mac chip Apple Silicon (M1 trở lên), macOS 26 trở lên. App chạy hoàn toàn offline.
 

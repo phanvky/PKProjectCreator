@@ -1,15 +1,15 @@
-# Build Info — PKProjectCreator 1.0.0 (1)
+# Build Info — PKProjectCreator 1.0.1 (2)
 
 | Item | Value |
 |---|---|
 | Product | PKProjectCreator |
 | Bundle identifier | `com.phankyfilm.PKProjectCreator` (unchanged) |
-| Version / build | 1.0.0 / 1 |
+| Version / build | 1.0.1 / 2 (1.0.0 / 1 is kept in its own folder) |
 | Minimum macOS | 26.0 |
 | Architecture | arm64 only (Apple Silicon) |
 | Configuration | Release (`-O`, whole-module), Swift 6 language mode |
 | Built on | macOS 27.2, Xcode 27.2 (27B52), 2026-11-10 |
-| Source | Phase 08 commit on `phase-08-release` (based on `main` 7778ea5) |
+| Source | branch `app-icon` (based on `main` b825608, tag v1.0.0) |
 | Dependencies | None beyond macOS system frameworks; `/usr/bin/zip`, `unzip`, `zipinfo` are called at runtime for the Resolve file |
 | Network | None (no network entitlement, no network code) |
 
@@ -26,11 +26,13 @@
 **Not notarized.** Notarization needs a Developer ID Application certificate and an Apple Developer account, and neither is available. Nothing was submitted to Apple.
 
 ## Artifacts (outside the source tree)
-`/Volumes/WORK/APP/Developer/PKProjectCreator-Release/1.0.0/`
+`/Volumes/WORK/APP/Developer/PKProjectCreator-Release/1.0.1/` (1.0.0 stays in `…/1.0.0/`)
 | File | Size | SHA-256 |
 |---|---|---|
-| `PKProjectCreator.app` | 4.1 MB | (bundle) |
-| `PKProjectCreator.dmg` | 1,406,336 bytes (1.4 MB), UDZO, APFS | `aab670eb9516a3239c0b52a10f32c2f87f9fef7739c5d4f3a9d7604e3067d1fe` |
+| `PKProjectCreator.app` | 5.9 MB | (bundle) |
+| `PKProjectCreator.dmg` | 3,253,123 bytes (3.3 MB), UDZO, APFS | `2f7df24b5696e4a6c30d1154b6e69fe7f2ac04abbedb3c4bf8df67b3a69c55cc` |
+
+1.0.0 DMG: 1,406,336 bytes, SHA-256 `aab670eb9516a3239c0b52a10f32c2f87f9fef7739c5d4f3a9d7604e3067d1fe`.
 
 DMG contents: `PKProjectCreator.app` and an `Applications` link to `/Applications`. No source, debug symbols or build products.
 
@@ -41,7 +43,7 @@ xcodebuild -project PKProjectCreator.xcodeproj -scheme PKProjectCreator \
   -configuration Release -derivedDataPath build clean build
 
 # 2. Copy out of the source tree
-R=/Volumes/WORK/APP/Developer/PKProjectCreator-Release/1.0.0
+R=/Volumes/WORK/APP/Developer/PKProjectCreator-Release/1.0.1
 ditto --norsrc build/Build/Products/Release/PKProjectCreator.app "$R/PKProjectCreator.app"
 
 # 3. Re-sign ad-hoc with Hardened Runtime and only the release entitlements

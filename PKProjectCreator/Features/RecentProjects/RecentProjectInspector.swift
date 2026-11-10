@@ -62,6 +62,17 @@ struct RecentProjectInspector: View {
                         Button { app.openInPremiere(project) } label: { Text("Open in Premiere Pro").frame(maxWidth: .infinity) }
                             .disabled(status.premiereFileExists != true)
                     }
+                    Button { app.beginUpdate(project) } label: {
+                        HStack {
+                            if app.projectUpdateTask != nil { ProgressView().controlSize(.small) }
+                            Text("Update Project…")
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .disabled(!app.canUpdate(project) || app.projectUpdateTask != nil)
+                    .help(app.canUpdate(project)
+                        ? "Add folders, delete empty folders, or add a missing Premiere / DaVinci Resolve project."
+                        : "The project folder must be reachable to update it.")
                     Button { app.copyPath(of: project) } label: { Text("Copy Path").frame(maxWidth: .infinity) }
                     Button { app.startProject(like: project) } label: { Text("New Project Like This…").frame(maxWidth: .infinity) }
                         .help("Same project type and folder template, today’s date, empty name. Nothing is copied.")

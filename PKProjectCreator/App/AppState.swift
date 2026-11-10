@@ -32,24 +32,31 @@ final class AppState {
     private(set) var creationTask: Task<Void, Never>?
     /// The project that was just created, shown in the success dialog.
     var createdProject: RecentProject?
+    /// The project being updated, with its folders as found on disk; nil while Update Project is closed.
+    var projectUpdate: ProjectUpdateSession?
+    /// Running while a project is being read or updated.
+    private(set) var projectUpdateTask: Task<Void, Never>?
 
     private let templateStore: FolderTemplateStore?
     private let settingsStore: SettingsStore?
     private let recentStore: RecentProjectsStore?
     private let fileAccess: FileAccessService
     private let creationService: ProjectCreationService
+    private let updateService: ProjectUpdateService
 
     /// `directory` is where settings, templates and recent projects are saved; pass `nil` to keep everything in
     /// memory (previews and tests).
     init(
         directory: URL? = .appSupportFolder, fileAccess: FileAccessService = FileAccessService(),
-        creationService: ProjectCreationService = ProjectCreationService()
+        creationService: ProjectCreationService = ProjectCreationService(),
+        updateService: ProjectUpdateService = ProjectUpdateService()
     ) {
         templateStore = directory.map(FolderTemplateStore.init)
         settingsStore = directory.map(SettingsStore.init)
         recentStore = directory.map(RecentProjectsStore.init)
         self.fileAccess = fileAccess
         self.creationService = creationService
+        self.updateService = updateService
 
         let loadedSettings = settingsStore?.load()
         let initialSettings = loadedSettings?.settings ?? AppSettings()
@@ -167,6 +174,93 @@ final class AppState {
 
     func revealInFinder(_ project: RecentProject) {
         NSWorkspace.shared.activateFileViewerSelecting([recentStatuses[project.id]?.url ?? project.rootURL])
+    }
+
+    // MARK: Update project
+
+    /// Update Project needs the project folder on a connected drive and the permission saved when it was created.
+    func canUpdate(_ project: RecentProject) -> Bool {
+        recentStatuses[project.id]?.isAvailable == true && project.projectRootBookmark != nil
+    }
+
+    /// Reads the project's folders from disk and opens Update Project. Nothing is changed.
+    func beginUpdate(_ project: RecentProject) {
+        guard projectUpdateTask == nil, let bookmark = project.projectRootBookmark else { return }
+        let premiereFolder = premiere.destinationFolder, resolveFolder = premiere.resolveFolder
+        projectUpdateTask = Task {
+            defer { projectUpdateTask = nil }
+            do {
+                let scan = try await fileAccess.withAccess(to: bookmark) { root, _ in
+                    try await updateService.scan(root: root, premiereFolder: premiereFolder, resolveFolder: resolveFolder)
+                }
+                projectUpdate = ProjectUpdateSession(project: project, scan: scan)
+            } catch {
+                notice = "“\(project.name)” couldn’t be read: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    var projectUpdatePlan: ProjectUpdatePlan? {
+        projectUpdate?.plan(premiereFolder: premiere.destinationFolder, resolveFolder: premiere.resolveFolder)
+    }
+
+    /// Why Update is unavailable; nil when it can run.
+    var projectUpdateBlocker: StatusMessage? {
+        guard let session = projectUpdate, let plan = projectUpdatePlan else { return nil }
+        if plan.isEmpty { return StatusMessage(text: "No changes yet.", kind: .neutral) }
+        let kept = session.scan.folders.values.map(\.path).filter { !plan.deletes.contains($0) }
+        let after = plan.foldersAfter(existing: kept)
+        let files: [([String]?, ResourceStatus, String)] = [
+            (plan.premiereFolder, premiereTemplate, "Premiere template"), (plan.resolveFolder, resolveTemplate, "DaVinci Resolve template"),
+        ]
+        for case let (folder?, template, item) in files {
+            if let problem = template.problem(item: item) { return StatusMessage(text: problem, kind: .warning) }
+            if !after.contains(folder) {
+                return StatusMessage(text: "Add the folder “\(folder.joined(separator: "/"))” first: the \(item.replacing(" template", with: "")) project goes there.", kind: .warning)
+            }
+        }
+        return nil
+    }
+
+    /// Applies the Update Project form to disk, then closes it and reports what was done.
+    func applyProjectUpdate() {
+        guard projectUpdateTask == nil, projectUpdateBlocker == nil, let session = projectUpdate, let plan = projectUpdatePlan,
+              let rootBookmark = session.project.projectRootBookmark else { return }
+        let premiereBookmark = plan.premiereFolder != nil ? settings.premiereTemplateBookmarkData : nil
+        let resolveBookmark = plan.resolveFolder != nil ? settings.resolveTemplateBookmarkData : nil
+        let project = session.project
+        projectUpdateTask = Task {
+            defer { projectUpdateTask = nil }
+            do {
+                let done = try await fileAccess.withAccess(to: rootBookmark) { root, _ in
+                    try await withAccess(to: premiereBookmark) { premiere in
+                        try await withAccess(to: resolveBookmark) { resolve in
+                            try await updateService.apply(plan, in: root, generatedName: project.name, premiereTemplate: premiere, resolveTemplate: resolve)
+                        }
+                    }
+                }
+                recordUpdate(of: project, plan: plan)
+                notice = "“\(project.name)” was updated:\n" + done.map { "• \($0)" }.joined(separator: "\n")
+            } catch {
+                notice = error.localizedDescription
+            }
+            // Closed either way: after a partial update the form no longer matches the disk.
+            projectUpdate = nil
+            refreshRecentProjects()
+        }
+    }
+
+    private func recordUpdate(of project: RecentProject, plan: ProjectUpdatePlan) {
+        guard let index = recentProjects.firstIndex(where: { $0.id == project.id }) else { return }
+        recentProjects[index].directoryCount += plan.creates.count - plan.deletes.count
+        if let folder = plan.premiereFolder {
+            recentProjects[index].premiereProjectRelativePath = (folder + [PremiereTemplateService.outputFilename(for: project.name)]).joined(separator: "/")
+        }
+        if let folder = plan.resolveFolder {
+            let file = PremiereTemplateService.outputFilename(for: project.name, fileExtension: PremiereTemplateService.resolveExtension)
+            recentProjects[index].resolveProjectRelativePath = (folder + [file]).joined(separator: "/")
+        }
+        saveRecentProjects()
     }
 
     // MARK: Recent projects

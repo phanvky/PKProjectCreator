@@ -95,6 +95,7 @@ struct RecentProjectsView: View {
                 .pickerStyle(.menu)
             }
         }
+        .sheet(item: Binding(get: { app.projectUpdate }, set: { app.projectUpdate = $0 })) { ProjectUpdateView(initial: $0) }
         .navigationTitle("Recent Projects")
         .navigationSubtitle("\(app.recentProjects.count) \(app.recentProjects.count == 1 ? "project" : "projects") created with PKProjectCreator")
         .onAppear {

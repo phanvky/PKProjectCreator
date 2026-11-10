@@ -92,6 +92,13 @@ Fields: `defaultProjectType`, `defaultDestinationURL`, `destinationBookmarkData`
 - Limit: default 20 (10 / 20 / 50 / 100 in Settings). Over the limit, the oldest entries leave the list; nothing on disk is deleted.
 - Status, checked at launch, on drive changes, when the app becomes active, and with Retry: Available · {drive} disconnected (entry kept, not marked deleted) · Missing (folder gone or moved; never recreated) · Permission needed. Premiere: Linked · Missing · Folders only · Unavailable.
 
+## Update Project
+- From Recent Projects › **Update Project…** (only when the project folder is reachable and was created by this app). The sheet shows the folders as they are on disk now (4 levels; deeper folders show as "more folders inside"), each marked new, empty, or 🔒 with its item count.
+- Allowed: add folders anywhere; rename or delete a folder only while it is empty (Finder's `.DS_Store` / `._` files don't count; anything else, hidden items included, does); add a Premiere or DaVinci Resolve project only when the project has none (no recorded file and no `.prproj` / `.drp` in its folder).
+- Never: move a folder, delete or rename a folder with anything inside, delete a file, replace a project file.
+- The plan is checked against the disk before anything is written, and each step is checked again just before it runs. Order: renames, new folders, project files, deletes (deletes are confirmed first). If a step fails, the update stops and the message lists what was already done; later steps, including deletes, don't run.
+- Afterwards the recent-project record is updated (folder count, Premiere / Resolve file paths).
+
 ## Saved files
 All in `~/Library/Containers/com.phankyfilm.PKProjectCreator/Data/Library/Application Support/PKProjectCreator/` (the sandboxed form of `~/Library/Application Support/PKProjectCreator/`):
 - `settings.json`, `folder-templates.json`, `recent-projects.json`.

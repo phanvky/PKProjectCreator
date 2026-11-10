@@ -19,6 +19,8 @@ nonisolated struct RecentProject: Identifiable, Hashable, Codable, Sendable {
     var volume: VolumeIdentity?
     /// e.g. `04_Project/Premiere Pro/2026 - 11 - 12 Event Develon.prproj`.
     var premiereProjectRelativePath: String?
+    /// e.g. `04_Project/DaVinci Resolve/2026 - 11 - 12 Event Develon.drp`.
+    var resolveProjectRelativePath: String?
     var createdAt = Date()
 
     var hasPremiereProject: Bool { premiereProjectRelativePath != nil }
@@ -50,14 +52,15 @@ nonisolated struct RecentProject: Identifiable, Hashable, Codable, Sendable {
     // Stored as `hasPremiereProject` too, so the file reads on its own.
     private enum CodingKeys: String, CodingKey {
         case id, projectName, projectType, projectDate, folderTemplateID, folderTemplateName, directoryCount
-        case destinationPath, projectRootBookmark, volume, premiereProjectRelativePath, createdAt, hasPremiereProject
+        case destinationPath, projectRootBookmark, volume, premiereProjectRelativePath, resolveProjectRelativePath, createdAt
+        case hasPremiereProject
     }
 
     init(
         id: UUID = UUID(), projectName: String, projectType: ProjectType, projectDate: Date,
         folderTemplateID: UUID, folderTemplateName: String, directoryCount: Int, destinationPath: String,
         projectRootBookmark: Data? = nil, volume: VolumeIdentity? = nil,
-        premiereProjectRelativePath: String? = nil, createdAt: Date = Date()
+        premiereProjectRelativePath: String? = nil, resolveProjectRelativePath: String? = nil, createdAt: Date = Date()
     ) {
         self.id = id
         self.projectName = projectName
@@ -70,6 +73,7 @@ nonisolated struct RecentProject: Identifiable, Hashable, Codable, Sendable {
         self.projectRootBookmark = projectRootBookmark
         self.volume = volume
         self.premiereProjectRelativePath = premiereProjectRelativePath
+        self.resolveProjectRelativePath = resolveProjectRelativePath
         self.createdAt = createdAt
     }
 
@@ -86,6 +90,7 @@ nonisolated struct RecentProject: Identifiable, Hashable, Codable, Sendable {
         projectRootBookmark = try values.decodeIfPresent(Data.self, forKey: .projectRootBookmark)
         volume = try values.decodeIfPresent(VolumeIdentity.self, forKey: .volume)
         premiereProjectRelativePath = try values.decodeIfPresent(String.self, forKey: .premiereProjectRelativePath)
+        resolveProjectRelativePath = try values.decodeIfPresent(String.self, forKey: .resolveProjectRelativePath)
         createdAt = try values.decodeIfPresent(Date.self, forKey: .createdAt) ?? projectDate
     }
 
@@ -102,6 +107,7 @@ nonisolated struct RecentProject: Identifiable, Hashable, Codable, Sendable {
         try values.encodeIfPresent(projectRootBookmark, forKey: .projectRootBookmark)
         try values.encodeIfPresent(volume, forKey: .volume)
         try values.encodeIfPresent(premiereProjectRelativePath, forKey: .premiereProjectRelativePath)
+        try values.encodeIfPresent(resolveProjectRelativePath, forKey: .resolveProjectRelativePath)
         try values.encode(createdAt, forKey: .createdAt)
         try values.encode(hasPremiereProject, forKey: .hasPremiereProject)
     }

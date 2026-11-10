@@ -68,6 +68,11 @@ Documentation/           Specs, plan, DesignReferences/
 - The service receives the URL macOS resolved from the bookmark and places the plan's relative parts (year folder, project name) under it; it never rebuilds a path from saved text.
 - `FolderNode`, `ProjectCreationPlan`, `RecentProject` and the name / folder rules are `nonisolated` and `Sendable` so they can cross to the background.
 
+## Update project
+- `ProjectUpdateService.scan` reads the project folder (through the project-root bookmark) into `ProjectScan`: a `FolderNode` tree plus a `ScannedFolder` per node (original path, item count). `ProjectUpdateSession` (the sheet's form, `AppState.projectUpdate`) enforces the rules and turns the edited tree into a `ProjectUpdatePlan` by node ID: renamed existing nodes, new nodes, missing existing nodes.
+- `ProjectUpdateService.apply` re-checks the whole plan, then runs renames → creates → file copies (`PremiereTemplateService.copy`, `ResolveProjectFile.setProjectName`) → deletes, re-checking emptiness right before each rename and delete. Errors: `ProjectUpdateError.changedOnDisk` (nothing written) or `.stopped(reason:done:)`.
+- `AppState.applyProjectUpdate` nests the project, Premiere and Resolve accesses, then updates the `RecentProject` (`directoryCount`, `premiereProjectRelativePath`, `resolveProjectRelativePath`).
+
 ## Rules for new code
 - New screens go in `Features/<Name>/`; reusable visual pieces in `DesignSystem/Components/`; domain-aware reusable views in `Shared/Components/`.
 - Filesystem work goes in `Services/`, called from AppState — views never touch `FileManager`.

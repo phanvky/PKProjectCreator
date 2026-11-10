@@ -148,7 +148,8 @@ nonisolated struct ProjectCreationService: Sendable {
         return RecentProject(
             projectName: plan.projectName, projectType: plan.type, projectDate: plan.date,
             folderTemplateID: templateID, folderTemplateName: plan.templateName, directoryCount: plan.directoryCount,
-            destinationPath: parent.plainPath, premiereProjectRelativePath: plan.premiereOutputRelativePath
+            destinationPath: parent.plainPath, premiereProjectRelativePath: plan.premiereOutputRelativePath,
+            resolveProjectRelativePath: plan.resolveOutputRelativePath
         )
     }
 }

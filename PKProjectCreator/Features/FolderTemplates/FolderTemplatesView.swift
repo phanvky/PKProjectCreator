@@ -3,23 +3,20 @@ import SwiftUI
 struct FolderTemplatesView: View {
     @Environment(AppState.self) private var app
     @State private var selectedID: FolderTemplate.ID?
+    @State private var isConfirmingDelete = false
 
-    private var selectedIndex: Int? {
-        app.templates.firstIndex { $0.id == selectedID }
+    private var selected: FolderTemplate? {
+        app.templates.first { $0.id == selectedID }
     }
 
     var body: some View {
-        @Bindable var app = app
-
         HStack(spacing: 0) {
             templateList
                 .frame(width: 270)
             Divider()
-            if let index = selectedIndex {
-                FolderTemplateEditor(template: $app.templates[index]) { type in
-                    app.assign(type, toTemplate: app.templates[index].id)
-                }
-                .id(app.templates[index].id)
+            if let selected {
+                FolderTemplateEditor(template: selected)
+                    .id(selected.id)
             } else {
                 ContentUnavailableView("No Template Selected", systemImage: "list.bullet.indent", description: Text("Select a template to edit it."))
             }
@@ -30,13 +27,23 @@ struct FolderTemplatesView: View {
                     if let id = selectedID { selectedID = app.duplicateTemplate(id) }
                 }
                 .labelStyle(.titleAndIcon)
-                .disabled(selectedIndex == nil)
+                .disabled(selected == nil)
             }
         }
         .navigationTitle("Folder Templates")
-        .navigationSubtitle("\(app.templates.count) templates · changes are not saved yet")
+        .navigationSubtitle("\(app.templates.count) templates · changes are saved automatically")
         .onAppear {
             if selectedID == nil { selectedID = app.templates.first?.id }
+        }
+        .confirmationDialog("Delete the template “\(selected?.name ?? "")”?", isPresented: $isConfirmingDelete) {
+            Button("Delete Template", role: .destructive) {
+                if let id = selectedID {
+                    app.removeTemplate(id)
+                    selectedID = app.templates.first?.id
+                }
+            }
+        } message: {
+            Text("Its folder structure is deleted with it. Projects already created are not affected. This can’t be undone.")
         }
     }
 
@@ -53,13 +60,10 @@ struct FolderTemplatesView: View {
                 Button("Add Template", systemImage: "plus") {
                     selectedID = app.addTemplate()
                 }
-                Button("Remove Template", systemImage: "minus") {
-                    if let id = selectedID {
-                        app.removeTemplate(id)
-                        selectedID = app.templates.first?.id
-                    }
-                }
-                .disabled(app.templates.count <= 1 || selectedIndex == nil)
+                let canRemove = selectedID.map(app.canRemoveTemplate) ?? false
+                Button("Remove Template", systemImage: "minus") { isConfirmingDelete = true }
+                    .disabled(!canRemove)
+                    .help(canRemove || selected == nil ? "Delete the selected template" : "The last configured template can’t be deleted")
                 Spacer()
             }
             .labelStyle(.iconOnly)
@@ -75,7 +79,7 @@ private struct TemplateListRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(template.name).font(.headline)
-            Text("\(template.folderCount) folders · \(template.folderCount + 1) with root")
+            Text(template.isConfigured ? "\(template.folderCount) folders · \(template.folderCount + 1) with root" : "Needs configuration")
                 .font(.callout)
             Text(defaultsText)
                 .font(.callout)

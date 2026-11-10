@@ -1,7 +1,7 @@
 import Foundation
 
 /// The fixed list of PHANKY FILM project types, in display order.
-nonisolated enum ProjectType: String, CaseIterable, Identifiable, Hashable {
+nonisolated enum ProjectType: String, CaseIterable, Identifiable, Hashable, Codable {
     case event = "Event"
     case psc = "PSC"
     case psh = "PSH"

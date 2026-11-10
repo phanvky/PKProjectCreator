@@ -34,9 +34,23 @@ Event, PSC, PSH, Tour, Golf Tournament, TVC, Reels.
 06_Graphic/
 07_Export/
 ```
-**Reels — Lite** — 9 folders including root. Default for Reels. Hierarchy **not yet specified** — do not invent it.
+**Reels — Lite** — planned with 9 folders including root, but the hierarchy has **not been supplied — do not invent it**. It ships with no folders, is shown as "Needs configuration", and is not a default for any type until the user adds its folders.
 
-A project type belongs to exactly one template.
+### Template rules
+- A template is *configured* (usable) once it has at least one folder. Only configured templates can be defaults.
+- A project type has at most one default template. A type with none (Reels, today) uses the first configured template.
+- The last configured template can't be deleted, and its last folder can't be removed.
+- Folders are identified by a stable ID, never by name. Nesting depth is unlimited.
+- Folder names are validated, never rewritten. Rejected: empty / whitespace-only, `/`, `:`, control characters, `.` and `..`, over 255 UTF-8 bytes, and a name already used by a sibling (ignoring letter case, as Mac volumes do). The same name under a different parent is fine. No Windows-only restrictions.
+- A folder can't be moved into itself or into one of its own subfolders.
+- Deleting a folder or a template asks for confirmation.
+
+### Template storage
+- `folder-templates.json` in Application Support/PKProjectCreator. The app is sandboxed, so the real path is `~/Library/Containers/com.phankyfilm.PKProjectCreator/Data/Library/Application Support/PKProjectCreator/`.
+- Format: `{ "schemaVersion": 1, "templates": [...] }`. Every change is saved immediately with an atomic write.
+- Built-in templates are written only when no file and no backup exist (first launch). An existing file is never replaced by defaults.
+- `folder-templates.backup.json` holds the last valid file from before the latest save.
+- A file that can't be read (damaged, or saved by a newer app version) is moved to `folder-templates.damaged.json`, the backup is loaded (or the built-in templates if there is none), and the user is told.
 
 ## Missing Premiere template policy
 Block creation until the template is available. Creating folders only requires the user to explicitly turn off "Create Premiere project from template". Incomplete projects are never created silently.

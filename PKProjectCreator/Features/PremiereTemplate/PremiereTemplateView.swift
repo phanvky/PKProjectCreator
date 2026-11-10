@@ -78,7 +78,7 @@ struct PremiereTemplateView: View {
     private var copyIntoSection: some View {
         @Bindable var app = app
         let current = app.premiere.destinationFolder
-        let paths = app.selectedTemplate?.folders.allPaths ?? []
+        let paths = app.selectedTemplate?.nodes.allPaths ?? []
         let options = paths.contains(current) ? paths : [current] + paths
 
         return VStack(alignment: .leading, spacing: 8) {
@@ -149,7 +149,7 @@ struct PremiereTemplateView: View {
     private var statusSection: some View {
         let drive = app.premiere.volumeName.flatMap { app.drive(forPath: "/Volumes/\($0)") }
         let template = app.selectedTemplate
-        let destinationExists = template?.folders.allPaths.contains(app.premiere.destinationFolder) ?? false
+        let destinationExists = template?.nodes.allPaths.contains(app.premiere.destinationFolder) ?? false
         let destination = app.premiere.destinationFolder.joined(separator: "/")
 
         return VStack(alignment: .leading, spacing: 8) {

@@ -46,6 +46,8 @@ struct FolderTreeView: View {
     @Binding var collapsed: Set<UUID>
     var selection: Binding<UUID?>?
     var showsDisclosure = true
+    /// When set, folders can be dragged onto each other: called with (dragged folder, folder it was dropped on).
+    var onMove: ((UUID, UUID) -> Void)?
 
     private struct Row: Identifiable {
         let item: FolderTreeItem
@@ -65,6 +67,7 @@ struct FolderTreeView: View {
                     onToggle: { toggle(row.id) },
                     onSelect: selection.map { binding in { binding.wrappedValue = row.id } }
                 )
+                .modifier(FolderDragAndDrop(id: row.id, onMove: row.item.kind == .folder ? onMove : nil))
             }
         }
     }
@@ -78,6 +81,25 @@ struct FolderTreeView: View {
 
     private func toggle(_ id: UUID) {
         if collapsed.contains(id) { collapsed.remove(id) } else { collapsed.insert(id) }
+    }
+}
+
+private struct FolderDragAndDrop: ViewModifier {
+    let id: UUID
+    let onMove: ((UUID, UUID) -> Void)?
+
+    func body(content: Content) -> some View {
+        if let onMove {
+            content
+                .draggable(id.uuidString)
+                .dropDestination(for: String.self) { items, _ in
+                    guard let dragged = items.first.flatMap(UUID.init(uuidString:)) else { return false }
+                    onMove(dragged, id)
+                    return true
+                }
+        } else {
+            content
+        }
     }
 }
 

@@ -33,16 +33,16 @@ struct FolderPreviewPanel: View {
             }
 
             Group {
-                if let template, template.isStructureSpecified {
+                if let template, template.isConfigured {
                     ScrollView {
                         FolderTreeView(items: [root], collapsed: $collapsed)
                             .padding(10)
                     }
                 } else {
                     ContentUnavailableView(
-                        "Structure Not Specified Yet",
+                        "Needs Configuration",
                         systemImage: "folder.badge.questionmark",
-                        description: Text("This template’s folder hierarchy hasn’t been approved yet.")
+                        description: Text("Add this template’s folders in Folder Templates.")
                     )
                 }
             }
@@ -53,7 +53,7 @@ struct FolderPreviewPanel: View {
     }
 
     private func previewRoot(_ template: FolderTemplate?) -> FolderTreeItem {
-        let folders = template?.folders ?? []
+        let folders = template?.nodes ?? []
         let file: FolderTreeItem.FilePlacement? = app.draft.createPremiere
             ? FolderTreeItem.FilePlacement(
                 id: Self.premiereFileID,
@@ -68,7 +68,7 @@ struct FolderPreviewPanel: View {
 
     private func summary(_ template: FolderTemplate?) -> String {
         let count = template?.folderCount ?? 0
-        let destinationExists = template?.folders.allPaths.contains(app.premiere.destinationFolder) ?? false
+        let destinationExists = template?.nodes.allPaths.contains(app.premiere.destinationFolder) ?? false
         let files = app.draft.createPremiere && destinationExists ? 1 : 0
         return "\(count + 1) directories (root + \(count)) · \(files) \(files == 1 ? "file" : "files")"
     }

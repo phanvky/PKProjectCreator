@@ -15,12 +15,20 @@ struct AppRootView: View {
             case .settings: SettingsView()
             }
         }
+        .alert(
+            "Folder Templates",
+            isPresented: Binding(get: { app.storageNotice != nil }, set: { if !$0 { app.storageNotice = nil } })
+        ) {
+            Button("OK") {}
+        } message: {
+            Text(app.storageNotice ?? "")
+        }
     }
 }
 
 #Preview {
     AppRootView()
-        .environment(AppState())
+        .environment(AppState(templateStore: nil))
         .frame(width: 1440, height: 960)
         .preferredColorScheme(.dark)
 }

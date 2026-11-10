@@ -44,8 +44,8 @@ extension AppState {
         if let issue = nameIssue {
             return StatusMessage(text: issue.message, kind: issue == .empty ? .neutral : .danger)
         }
-        if let template = selectedTemplate, !template.isStructureSpecified {
-            return StatusMessage(text: "The “\(template.name)” folder structure isn’t specified yet.", kind: .warning)
+        if let template = selectedTemplate, !template.isConfigured {
+            return StatusMessage(text: "“\(template.name)” needs configuration: add its folders in Folder Templates.", kind: .warning)
         }
         if draft.createPremiere && premiere.status == .missing {
             return StatusMessage(

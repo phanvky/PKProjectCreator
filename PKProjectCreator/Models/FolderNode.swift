@@ -1,13 +1,14 @@
 import Foundation
 
 /// One folder in a template hierarchy. The project root is not a node; it is added at creation time.
-struct FolderNode: Identifiable, Hashable {
+/// Folders are identified by `id`, never by name.
+struct FolderNode: Identifiable, Hashable, Codable {
     let id: UUID
     var name: String
     var children: [FolderNode]
 
-    init(_ name: String, children: [FolderNode] = []) {
-        self.id = UUID()
+    init(_ name: String, children: [FolderNode] = [], id: UUID = UUID()) {
+        self.id = id
         self.name = name
         self.children = children
     }
@@ -26,10 +27,24 @@ extension Array where Element == FolderNode {
         }
     }
 
+    /// The same tree with a new ID for every folder, for duplicated templates.
+    var withNewIDs: [FolderNode] {
+        map { FolderNode($0.name, children: $0.children.withNewIDs) }
+    }
+
     func node(withID id: UUID) -> FolderNode? {
         for node in self {
             if node.id == id { return node }
             if let found = node.children.node(withID: id) { return found }
+        }
+        return nil
+    }
+
+    /// The folders at the same level as `id`, including `id` itself.
+    func siblings(of id: UUID) -> [FolderNode]? {
+        if contains(where: { $0.id == id }) { return self }
+        for node in self {
+            if let found = node.children.siblings(of: id) { return found }
         }
         return nil
     }
@@ -55,10 +70,6 @@ extension Array where Element == FolderNode {
         modifySiblings(of: id) { siblings, index in siblings.remove(at: index) }
     }
 
-    mutating func insert(_ node: FolderNode, after id: UUID) {
-        modifySiblings(of: id) { siblings, index in siblings.insert(node, at: index + 1) }
-    }
-
     mutating func appendChild(_ node: FolderNode, to id: UUID) {
         modifySiblings(of: id) { siblings, index in siblings[index].children.append(node) }
     }
@@ -70,5 +81,21 @@ extension Array where Element == FolderNode {
             guard siblings.indices.contains(target) else { return }
             siblings.swapAt(index, target)
         }
+    }
+
+    /// Moves a folder, with everything inside it, into another folder — or to the top level when `parentID` is nil.
+    mutating func move(_ id: UUID, intoParent parentID: UUID?) throws {
+        guard let node = node(withID: id) else { return }
+        if parentID == id { throw FolderEditIssue.moveIntoItself }
+        var newSiblings = self
+        if let parentID {
+            if node.children.node(withID: parentID) != nil { throw FolderEditIssue.moveIntoDescendant }
+            guard let parent = self.node(withID: parentID) else { return }
+            newSiblings = parent.children
+        }
+        let names = newSiblings.filter { $0.id != id }.map(\.name)
+        if let issue = FolderNaming.issue(for: node.name, siblings: names) { throw issue }
+        remove(id)
+        if let parentID { appendChild(node, to: parentID) } else { append(node) }
     }
 }

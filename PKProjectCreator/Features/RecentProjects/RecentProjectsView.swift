@@ -1,19 +1,15 @@
 import SwiftUI
 
+/// Projects this app created (from `recent-projects.json`). Drives are never scanned.
 struct RecentProjectsView: View {
     @Environment(AppState.self) private var app
     @State private var searchText = ""
     @State private var typeFilter: ProjectType?
     @State private var selection: RecentProject.ID?
-    @State private var sortOrder = [KeyPathComparator(\RecentProject.date, order: .reverse)]
+    @State private var sortOrder = [KeyPathComparator(\RecentProject.projectDate, order: .reverse)]
 
     private var visibleProjects: [RecentProject] {
-        app.recentProjects
-            .filter { project in
-                (typeFilter == nil || project.type == typeFilter)
-                    && (searchText.isEmpty || project.name.localizedStandardContains(searchText))
-            }
-            .sorted(using: sortOrder)
+        RecentProject.matching(app.recentProjects, search: searchText, type: typeFilter).sorted(using: sortOrder)
     }
 
     var body: some View {
@@ -22,53 +18,60 @@ struct RecentProjectsView: View {
         Table(projects, selection: $selection, sortOrder: $sortOrder) {
             TableColumn("Name", value: \.name) { project in
                 Label {
-                    Text(project.name).lineLimit(1)
+                    Text(project.name)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(project.name)
                 } icon: {
                     Image(systemName: "folder.fill").foregroundStyle(Theme.folderTint)
                 }
             }
             .width(min: 200, ideal: 300)
-            TableColumn("Type", value: \.type.rawValue) { project in
-                TagLabel(text: project.type.rawValue)
+            TableColumn("Type", value: \.projectType.rawValue) { project in
+                TagLabel(text: project.projectType.rawValue)
             }
             .width(min: 70, ideal: 120)
-            TableColumn("Date", value: \.date) { project in
-                Text(project.date, format: .dateTime.day().month(.abbreviated).year())
+            TableColumn("Date", value: \.projectDate) { project in
+                Text(project.projectDate, format: .dateTime.day().month(.abbreviated).year())
             }
             .width(min: 90, ideal: 110)
             TableColumn("Location") { project in
-                Text(project.locationSummary)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                let status = app.recentStatuses[project.id] ?? RecentProjectStatus()
+                if status.isAvailable {
+                    Text(project.locationSummary)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(app.path(of: project))
+                } else {
+                    StatusLabel(text: status.label, kind: status.kind)
+                        .lineLimit(1)
+                        .help(app.path(of: project))
+                }
             }
             .width(min: 120, ideal: 220)
-            TableColumn("Premiere", value: \.premiere.rawValue) { project in
-                StatusLabel(text: project.premiere.rawValue, kind: project.premiere == .linked ? .success : .warning)
+            TableColumn("Premiere") { project in
+                let premiere = (app.recentStatuses[project.id] ?? RecentProjectStatus()).premiereLabel(for: project)
+                StatusLabel(text: premiere.text, kind: premiere.kind)
             }
-            .width(min: 80, ideal: 90)
+            .width(min: 80, ideal: 100)
         }
         .alternatingRowBackgrounds(.disabled)
         .overlay {
             if projects.isEmpty {
                 if app.recentProjects.isEmpty {
-                    ContentUnavailableView("No Recent Projects", systemImage: "clock", description: Text("Projects you create will appear here."))
+                    ContentUnavailableView(
+                        "No Recent Projects",
+                        systemImage: "clock",
+                        description: Text("Projects you create with PKProjectCreator appear here. Your drives are not scanned.")
+                    )
                 } else {
                     ContentUnavailableView.search(text: searchText)
                 }
             }
         }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            ValidationMessage(text: "Sample data for design review — these are not your real projects. Nothing on disk is scanned yet.", kind: .neutral)
-                .font(.caption)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.bar)
-                .overlay(alignment: .bottom) { Divider() }
-        }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            Text("\(projects.count) of \(app.recentProjects.count) sample projects")
+            Text("\(projects.count) of \(app.recentProjects.count) projects · keeps the newest \(app.settings.maximumRecentProjects) (change in Settings)")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 20)
@@ -78,17 +81,10 @@ struct RecentProjectsView: View {
                 .overlay(alignment: .top) { Divider() }
         }
         .inspector(isPresented: .constant(true)) {
-            RecentProjectInspector(
-                project: app.recentProjects.first { $0.id == selection },
-                onNewProjectLikeThis: { app.startProject(like: $0) },
-                onRemove: { project in
-                    app.recentProjects.removeAll { $0.id == project.id }
-                    selection = nil
-                }
-            )
-            .inspectorColumnWidth(min: 260, ideal: 300, max: 380)
+            RecentProjectInspector(project: app.recentProjects.first { $0.id == selection })
+                .inspectorColumnWidth(min: 280, ideal: 320, max: 400)
         }
-        .searchable(text: $searchText, placement: .toolbar, prompt: "Search")
+        .searchable(text: $searchText, placement: .toolbar, prompt: "Search project names")
         .toolbar {
             ToolbarItem {
                 Picker("Project Type", selection: $typeFilter) {
@@ -100,8 +96,9 @@ struct RecentProjectsView: View {
             }
         }
         .navigationTitle("Recent Projects")
-        .navigationSubtitle("\(app.recentProjects.count) sample projects")
+        .navigationSubtitle("\(app.recentProjects.count) \(app.recentProjects.count == 1 ? "project" : "projects") created with PKProjectCreator")
         .onAppear {
+            app.refreshRecentProjects()
             if selection == nil { selection = projects.first?.id }
         }
     }

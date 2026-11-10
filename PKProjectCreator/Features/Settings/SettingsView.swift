@@ -68,6 +68,10 @@ struct SettingsView: View {
                     .frame(width: 220)
                 }
             }
+            Text("When the list is full, the oldest entries leave the list. Projects on disk are never deleted.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
         }
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader("After Creating a Project")
@@ -152,7 +156,11 @@ struct SettingsView: View {
     // MARK: Naming
 
     private var naming: some View {
-        let sample = ProjectNameGenerator.generatedName(date: .now, type: app.settings.defaultProjectType, projectName: "Develon")
+        // Live: follows the New Project form, or a sample name while it is empty.
+        let draft = app.draft
+        let sample = ProjectNameGenerator.generatedName(
+            date: draft.date, type: draft.type, projectName: draft.projectName.isBlank ? "Develon" : draft.projectName
+        )
 
         return VStack(alignment: .leading, spacing: 8) {
             SectionHeader("Naming")

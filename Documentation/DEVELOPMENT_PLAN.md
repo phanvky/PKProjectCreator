@@ -20,9 +20,9 @@ Not done on purpose: no Premiere copy. While "Create Premiere project from templ
 `PremiereTemplateService` validates the master (exists, regular file, readable, `.prproj`), copies it into the staging project's Copy Into folder as `{Generated Name}.prproj` and verifies the copy byte for byte; the copy is one step of the Phase 04 transaction, so a failed copy leaves nothing behind. Template states (ready to copy, missing, drive disconnected, permission denied, bookmark stale, invalid file) are tracked independently of the destination drive. Open in Premiere Pro uses the app macOS has registered for `.prproj`; a launch failure is only reported. The Phase 04 gate is removed.
 Not done on purpose: created projects are still not added to Recent Projects; the Copy Into folder choice is still in memory only.
 
-## Phase 06 — Recent projects persistence (recommended next)
-- Recent projects list (limit from Settings), verify each path on launch; save the `RecentProject` returned by each creation.
-- Save the Copy Into folder choice.
+## Phase 06 — Recent projects & settings persistence ✅
+`recent-projects.json` filled only by successful creations (no drive scanning; sample data removed); each record keeps a bookmark of the project folder and its volume identifier. Recent Projects: search, type filter, date sort, details, Reveal in Finder, Open in Premiere Pro, Copy Path, New Project Like This, Remove from List (metadata only, with confirmation), live status (available / drive disconnected / missing / permission needed) with Retry. Limit from Settings (default 20) keeps the newest. One `JSONFileStore` now gives settings, templates and recent projects the same schema version, atomic write, backup, damaged-file recovery and migration hook.
+Not done on purpose: the Copy Into folder choice on Premiere Template is still in memory only.
 
-## Phase 07 — Polish & distribution
+## Phase 07 — Polish & distribution (recommended next)
 - Reels — Lite hierarchy (once supplied; it can already be entered by hand in Folder Templates), keyboard shortcuts, accessibility pass, app icon, signing/notarization, DMG.

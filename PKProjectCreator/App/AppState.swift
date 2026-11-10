@@ -1,13 +1,17 @@
 import AppKit
 import Observation
 
-/// Single source of truth. Settings and folder templates are saved to disk through their stores; the rest is in memory.
+/// Single source of truth. Settings, folder templates and recent projects are saved to disk through their stores.
 @Observable
 final class AppState {
     var screen: AppScreen = .newProject
     /// Saved after every change.
     var settings: AppSettings {
-        didSet { if settings != oldValue { saveSettings() } }
+        didSet {
+            guard settings != oldValue else { return }
+            saveSettings()
+            if settings.maximumRecentProjects != oldValue.maximumRecentProjects { saveRecentProjects() }
+        }
     }
     var templates: [FolderTemplate]
     /// A problem to show the user (loading, saving, permissions); nil when everything is fine.
@@ -17,8 +21,10 @@ final class AppState {
     private(set) var destination = ResourceStatus()
     /// The Premiere master project file (on WORK by default).
     private(set) var premiereTemplate = ResourceStatus()
-    /// Sample rows only (see `RecentProject.samples`); real history arrives with persistence.
-    var recentProjects = RecentProject.samples
+    /// Projects this app created, newest first, at most `settings.maximumRecentProjects`. Never filled by scanning drives.
+    private(set) var recentProjects: [RecentProject]
+    /// Where each recent project stands right now (available, drive disconnected, missing…).
+    private(set) var recentStatuses: [RecentProject.ID: RecentProjectStatus] = [:]
     var draft = NewProjectDraft(type: .event, createPremiere: true)
     /// Running while a project is being created; nil otherwise.
     private(set) var creationTask: Task<Void, Never>?
@@ -27,24 +33,31 @@ final class AppState {
 
     private let templateStore: FolderTemplateStore?
     private let settingsStore: SettingsStore?
+    private let recentStore: RecentProjectsStore?
     private let fileAccess: FileAccessService
     private let creationService: ProjectCreationService
 
-    /// `directory` is where settings and templates are saved; pass `nil` to keep everything in memory (previews).
+    /// `directory` is where settings, templates and recent projects are saved; pass `nil` to keep everything in
+    /// memory (previews and tests).
     init(
         directory: URL? = .appSupportFolder, fileAccess: FileAccessService = FileAccessService(),
         creationService: ProjectCreationService = ProjectCreationService()
     ) {
         templateStore = directory.map(FolderTemplateStore.init)
         settingsStore = directory.map(SettingsStore.init)
+        recentStore = directory.map(RecentProjectsStore.init)
         self.fileAccess = fileAccess
         self.creationService = creationService
 
         let loadedSettings = settingsStore?.load()
-        settings = loadedSettings?.settings ?? AppSettings()
+        let initialSettings = loadedSettings?.settings ?? AppSettings()
+        settings = initialSettings
         let loadedTemplates = templateStore?.load()
         templates = loadedTemplates?.templates ?? FolderTemplate.builtIn()
-        notice = [loadedSettings?.notice, loadedTemplates?.notice].compactMap(\.self).joined(separator: "\n\n").nilIfEmpty
+        let loadedRecent = recentStore?.load()
+        recentProjects = Self.newest(loadedRecent?.projects ?? [], limit: initialSettings.maximumRecentProjects)
+        notice = [loadedSettings?.notice, loadedTemplates?.notice, loadedRecent?.notice]
+            .compactMap(\.self).joined(separator: "\n\n").nilIfEmpty
 
         refreshResources()
         resetDraft()
@@ -57,11 +70,14 @@ final class AppState {
         draft = NewProjectDraft(type: type, templateID: defaultTemplate(for: type)?.id, createPremiere: settings.createPremiereProjectByDefault)
     }
 
+    /// A fresh form with the same type and folder template as `project`: today's date, an empty name, and the
+    /// saved destination. Nothing on disk is read, copied or changed.
     func startProject(like project: RecentProject) {
+        createdProject = nil
         resetDraft()
-        draft.type = project.type
-        draft.projectName = project.projectName
-        draft.templateID = templates.first { $0.name == project.templateName }?.id ?? defaultTemplate(for: project.type)?.id
+        draft.type = project.projectType
+        let sameTemplate = templates.first { $0.id == project.folderTemplateID && $0.isConfigured }
+        draft.templateID = sameTemplate?.id ?? defaultTemplate(for: project.projectType)?.id
         screen = .newProject
     }
 
@@ -78,13 +94,21 @@ final class AppState {
             do {
                 // KIOXIA and WORK are separate permissions; both stay open until the creation has finished.
                 let project = try await fileAccess.withAccess(to: destinationBookmark) { destination, _ in
-                    guard let templateBookmark else {
-                        return try await creationService.create(plan, in: destination)
+                    var project = if let templateBookmark {
+                        try await fileAccess.withAccess(to: templateBookmark) { template, _ in
+                            try await creationService.create(plan, in: destination, premiereTemplate: template)
+                        }
+                    } else {
+                        try await creationService.create(plan, in: destination)
                     }
-                    return try await fileAccess.withAccess(to: templateBookmark) { template, _ in
-                        try await creationService.create(plan, in: destination, premiereTemplate: template)
+                    // Remember the new folder itself, so Recent Projects can reach it even if the destination changes.
+                    if let grant = try? fileAccess.authorize(project.rootURL, readOnly: false) {
+                        project.projectRootBookmark = grant.bookmark
+                        project.volume = grant.volume
                     }
+                    return project
                 }
+                addRecentProject(project)
                 createdProject = project
                 if settings.clearProjectNameAfterCreation { draft.projectName = "" }
                 if settings.openFinderAfterCreation { revealInFinder(project) }
@@ -97,14 +121,18 @@ final class AppState {
     }
 
     /// Opens the project's `.prproj` with the app macOS has registered for it. A failure here is only
-    /// reported: the project itself was created and stays.
+    /// reported: the project itself stays as it is.
     func openInPremiere(_ project: RecentProject) {
-        guard let relativePath = project.premiereRelativePath, let bookmark = settings.destinationBookmarkData else { return }
-        let file = URL(filePath: project.fullPath, directoryHint: .isDirectory).appending(path: relativePath, directoryHint: .notDirectory)
-        let kept = "The project was created and has not been changed."
+        guard let relativePath = project.premiereProjectRelativePath,
+              let bookmark = project.projectRootBookmark ?? settings.destinationBookmarkData else { return }
+        let usesRootBookmark = project.projectRootBookmark != nil
+        let kept = "The project has not been changed."
         Task {
+            var file = project.rootURL.appending(path: relativePath, directoryHint: .notDirectory)
             do {
-                try await fileAccess.withAccess(to: bookmark) { _, _ in
+                try await fileAccess.withAccess(to: bookmark) { url, _ in
+                    // The folder may have been renamed or moved since; its bookmark knows where it is now.
+                    if usesRootBookmark { file = url.appending(path: relativePath, directoryHint: .notDirectory) }
                     guard let app = NSWorkspace.shared.urlForApplication(toOpen: file) else {
                         notice = "No app on this Mac is set to open .prproj files, so “\(file.lastPathComponent)” wasn’t opened. Install Adobe Premiere Pro, or open the file from Finder. \(kept)"
                         return
@@ -127,7 +155,83 @@ final class AppState {
     }
 
     func revealInFinder(_ project: RecentProject) {
-        NSWorkspace.shared.activateFileViewerSelecting([URL(filePath: project.fullPath, directoryHint: .isDirectory)])
+        NSWorkspace.shared.activateFileViewerSelecting([recentStatuses[project.id]?.url ?? project.rootURL])
+    }
+
+    // MARK: Recent projects
+
+    /// Records a project this app just created. The list keeps the newest `maximumRecentProjects` entries.
+    func addRecentProject(_ project: RecentProject) {
+        recentProjects.insert(project, at: 0)
+        saveRecentProjects()
+        recentStatuses[project.id] = status(of: project).status
+    }
+
+    /// Removes the entry from the list only. The project folder and its Premiere file are not touched.
+    func removeRecentProject(_ id: RecentProject.ID) {
+        recentProjects.removeAll { $0.id == id }
+        recentStatuses[id] = nil
+        saveRecentProjects()
+    }
+
+    /// The path of the project folder: where it really is when reachable, otherwise where it was created.
+    func path(of project: RecentProject) -> String {
+        (recentStatuses[project.id]?.url ?? project.rootURL).plainPath
+    }
+
+    func copyPath(of project: RecentProject) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(path(of: project), forType: .string)
+    }
+
+    /// Re-checks every entry. Records are never removed or changed here, except to renew an expired permission.
+    func refreshRecentProjects() {
+        var renewedAny = false
+        for index in recentProjects.indices {
+            let (status, renewed) = status(of: recentProjects[index])
+            if recentStatuses[recentProjects[index].id] != status { recentStatuses[recentProjects[index].id] = status }
+            if let renewed {
+                recentProjects[index].projectRootBookmark = renewed
+                renewedAny = true
+            }
+        }
+        if renewedAny { saveRecentProjects() }
+    }
+
+    private func status(of project: RecentProject) -> (status: RecentProjectStatus, renewed: Data?) {
+        let check = fileAccess.check(
+            bookmark: project.projectRootBookmark, lastKnownURL: project.rootURL, volume: project.volume, readOnly: false
+        )
+        var status = RecentProjectStatus(volumeName: check.status.volumeName)
+        switch check.status.state {
+        case .authorized:
+            status.location = .available
+            status.url = check.status.url
+            if let relativePath = project.premiereProjectRelativePath, let bookmark = check.renewedBookmark ?? project.projectRootBookmark {
+                status.premiereFileExists = (try? fileAccess.withAccess(to: bookmark) { url, _ in
+                    fileAccess.system.isReachable(url.appending(path: relativePath, directoryHint: .notDirectory))
+                }) ?? false
+            }
+        case .disconnected: status.location = .volumeDisconnected
+        case .missing: status.location = .missing
+        case .permissionUnavailable, .stale, .invalid, .notSelected: status.location = .permissionNeeded
+        }
+        return (status, check.renewedBookmark)
+    }
+
+    private static func newest(_ projects: [RecentProject], limit: Int) -> [RecentProject] {
+        Array(projects.sorted { $0.createdAt > $1.createdAt }.prefix(limit))
+    }
+
+    /// Trims to the limit (metadata only; nothing on disk is deleted) and saves.
+    private func saveRecentProjects() {
+        recentProjects = Self.newest(recentProjects, limit: settings.maximumRecentProjects)
+        guard let recentStore else { return }
+        do {
+            try recentStore.save(recentProjects)
+        } catch {
+            notice = "The recent projects list couldn’t be saved: \(error.localizedDescription)"
+        }
     }
 
     // MARK: Templates
@@ -261,6 +365,7 @@ final class AppState {
         if templateCheck.status.isReady, let url = templateCheck.status.url { updated.premiereTemplateURL = url }
 
         settings = updated
+        refreshRecentProjects()
     }
 
     func chooseDestination() {

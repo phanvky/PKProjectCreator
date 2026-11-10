@@ -1,44 +1,27 @@
 import Foundation
 
-extension URL {
-    /// Application Support/PKProjectCreator (inside the app's sandbox container).
-    static var appSupportFolder: URL { URL.applicationSupportDirectory.appending(path: "PKProjectCreator") }
-}
-
-/// Reads and writes `settings.json`. Only AppState uses this.
+/// `settings.json`. Only AppState uses this.
 struct SettingsStore {
-    static let schemaVersion = 1
-
-    private struct File: Codable {
-        var schemaVersion: Int
-        var settings: AppSettings
-    }
-
-    let directory: URL
-    var fileURL: URL { directory.appending(path: "settings.json") }
-    /// An unreadable file is moved here instead of being deleted.
-    var damagedURL: URL { directory.appending(path: "settings.damaged.json") }
+    let file: JSONFileStore<AppSettings>
+    var directory: URL { file.directory }
+    var fileURL: URL { file.fileURL }
+    var backupURL: URL { file.backupURL }
+    var damagedURL: URL { file.damagedURL }
 
     init(directory: URL = .appSupportFolder) {
-        self.directory = directory
+        file = JSONFileStore(directory: directory, baseName: "settings", key: "settings")
     }
 
-    /// No file → defaults. Unreadable file → kept aside as `damagedURL`, defaults, and a notice for the user.
+    /// A damaged file is recovered from the backup; defaults are used only when there is no backup either.
     func load() -> (settings: AppSettings, notice: String?) {
-        let files = FileManager.default
-        guard files.fileExists(atPath: fileURL.path) else { return (AppSettings(), nil) }
-        if let file = try? JSONDecoder().decode(File.self, from: Data(contentsOf: fileURL)), file.schemaVersion <= Self.schemaVersion {
-            return (file.settings, nil)
-        }
-        try? files.removeItem(at: damagedURL)
-        try? files.moveItem(at: fileURL, to: damagedURL)
-        return (AppSettings(), "The settings file couldn’t be read, so settings were reset. It was kept as “\(damagedURL.lastPathComponent)”. Choose your destination folder and Premiere template again.")
+        let (settings, notice) = file.load(
+            label: "settings",
+            fallback: "settings were reset. Choose your destination folder and Premiere template again"
+        )
+        return (settings ?? AppSettings(), notice)
     }
 
     func save(_ settings: AppSettings) throws {
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try encoder.encode(File(schemaVersion: Self.schemaVersion, settings: settings)).write(to: fileURL, options: .atomic)
+        try file.save(settings)
     }
 }

@@ -40,7 +40,7 @@ struct NewProjectView: View {
             ProjectCreatedDialog(
                 projectName: project.name,
                 directoryCount: project.directoryCount,
-                premiereFilename: project.premiereRelativePath.map { ($0 as NSString).lastPathComponent },
+                premiereFilename: project.premiereFilename,
                 location: project.fullPath,
                 onRevealInFinder: { app.revealInFinder(project) },
                 onOpenInPremiere: { app.openInPremiere(project) },

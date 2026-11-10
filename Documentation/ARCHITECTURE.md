@@ -19,11 +19,12 @@ PKProjectCreator/
                   SectionHeader, StatusDot/Label/Badge, ValidationMessage, TagLabel, ChipButtonStyle,
                   BottomActionBar, PathBreadcrumb)
   Models/         ProjectType, FolderNode (+ tree editing and moves), FolderTemplate (+ validated folder edits,
-                  built-in templates), RecentProject (+ sample data), AppSettings (saved preferences),
+                  built-in templates), RecentProject (+ RecentProjectStatus), AppSettings (saved preferences),
                   ResourceStatus (VolumeIdentity, ResourceState, ResourceStatus, DriveInfo), PremiereTemplateConfig,
                   ProjectCreationPlan (what one creation will do)
-  Services/       FolderTemplateStore (folder-templates.json: load, save, backup, recovery),
-                  SettingsStore (settings.json), FileAccessService (bookmarks, access, resource checks;
+  Services/       JSONFileStore (shared: schema version, atomic write, backup, damaged-file recovery,
+                  migration hook; URL.appSupportFolder), FolderTemplateStore, SettingsStore,
+                  RecentProjectsStore (thin wrappers that own the file names and fallbacks), FileAccessService (bookmarks, access, resource checks;
                   ResourceAccess protocol + SystemResourceAccess; OpenPanels),
                   ProjectCreationService (staging folder → rename; ProjectCreationError),
                   PremiereTemplateService (validate, copy and verify the master; PremiereTemplateError)
@@ -45,7 +46,8 @@ Documentation/           Specs, plan, DesignReferences/
 
 ## State
 - One `@Observable AppState` injected with `.environment`. Holds navigation (`screen`), the New Project `draft`, templates, Premiere config, drives, settings and recent projects.
-- Saved data: settings (`SettingsStore`) and templates (`FolderTemplateStore`). `AppState.settings` saves itself in `didSet`. `AppState(directory: nil)` keeps everything in memory (previews and most tests).
+- Saved data: settings, templates and recent projects, each through a store built on `JSONFileStore`. `AppState.settings` saves itself in `didSet` (and trims the recent list when the limit changes).
+- Recent projects: `AppState.addRecentProject` is called only by `createProject()`, which first bookmarks the new project folder while the destination's access is still open. `recentStatuses` is derived (never saved) by `refreshRecentProjects()`, which runs inside `refreshResources()`; it uses `FileAccessService.check` on each project's bookmark, so a drive is recognized by identifier and a moved folder is followed. Nothing there deletes or recreates anything; `removeRecentProject` only edits the list. `AppState(directory: nil)` keeps everything in memory (previews and most tests).
 - `AppState.destination` and `AppState.premiereTemplate` are `ResourceStatus` values produced by `FileAccessService.check`. `refreshResources()` recomputes both; `AppRootView` calls it on volume mount / unmount / rename and when the app becomes active. Views read these two values and never decide readiness from a path string.
 - Tests replace macOS with a fake `ResourceAccess` (volumes, permissions, stale bookmarks), so they never need the real drives.
 - `AppState.init` loads templates through `FolderTemplateStore`; every template change goes through `AppState.updateTemplate` (or the add / duplicate / remove / `setDefault` methods), which saves right after. Load, save and permission problems land in `AppState.notice`, shown as an alert by `AppRootView`.

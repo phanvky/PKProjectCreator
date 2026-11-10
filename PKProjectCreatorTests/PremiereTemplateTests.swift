@@ -71,8 +71,8 @@ struct PremiereTemplateTests {
         #expect(entries.count == 19)
         #expect(entries.filter { $0.hasSuffix(".prproj") } == ["04_Project/Premiere Pro/2026 - 11 - 12 Event Develon.prproj"])
         #expect(try files.contentsOfDirectory(atPath: destination.appending(path: "2026").plainPath) == ["2026 - 11 - 12 Event Develon"])
-        #expect(project.premiere == .linked)
-        #expect(project.premiereRelativePath == "04_Project/Premiere Pro/2026 - 11 - 12 Event Develon.prproj")
+        #expect(project.hasPremiereProject)
+        #expect(project.premiereProjectRelativePath == "04_Project/Premiere Pro/2026 - 11 - 12 Event Develon.prproj")
         // The master was only read: same bytes, size, date, permissions, and nothing new beside it.
         #expect(try snapshot(master) == before)
     }
@@ -97,7 +97,7 @@ struct PremiereTemplateTests {
         await app.creationTask?.value
 
         #expect(app.notice == nil)
-        #expect(app.createdProject?.premiere == .linked)
+        #expect(app.createdProject?.hasPremiereProject == true)
         #expect(try Data(contentsOf: destination.appending(path: outputPath)) == fixtureBytes)
         #expect(try snapshot(master) == before)
     }

@@ -49,7 +49,7 @@ nonisolated struct ProjectCreationService: Sendable {
         if let issue = ProjectNameGenerator.issue(forProjectName: plan.projectName, generatedName: plan.generatedName) {
             throw ProjectCreationError.invalidName(issue)
         }
-        guard !plan.folders.isEmpty else { throw ProjectCreationError.templateNotConfigured(plan.templateName) }
+        guard !plan.folders.isEmpty, let templateID = plan.templateID else { throw ProjectCreationError.templateNotConfigured(plan.templateName) }
         // A plan that wants a Premiere project gets one or nothing: never a silent folders-only project.
         if let premiereFolder = plan.premiereFolder {
             guard plan.folders.allPaths.contains(premiereFolder) else {
@@ -117,9 +117,9 @@ nonisolated struct ProjectCreationService: Sendable {
         }
 
         return RecentProject(
-            date: plan.date, type: plan.type, projectName: plan.projectName, templateName: plan.templateName,
-            directoryCount: plan.directoryCount, premiere: plan.createsPremiereProject ? .linked : .foldersOnly,
-            parentFolder: parent.plainPath, premiereRelativePath: plan.premiereOutputRelativePath
+            projectName: plan.projectName, projectType: plan.type, projectDate: plan.date,
+            folderTemplateID: templateID, folderTemplateName: plan.templateName, directoryCount: plan.directoryCount,
+            destinationPath: parent.plainPath, premiereProjectRelativePath: plan.premiereOutputRelativePath
         )
     }
 }

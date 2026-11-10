@@ -2,7 +2,7 @@ import Foundation
 
 /// A volume remembered by its identifier, so a renamed drive or a changed mount path is still recognized.
 /// The name is only used for display, and as a fallback for volumes that report no identifier.
-struct VolumeIdentity: Codable, Equatable {
+nonisolated struct VolumeIdentity: Codable, Hashable, Sendable {
     var uuid: String?
     var name: String
 

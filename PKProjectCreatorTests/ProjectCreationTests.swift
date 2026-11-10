@@ -75,7 +75,7 @@ struct ProjectCreationTests {
         #expect(try files.contentsOfDirectory(atPath: destination.appending(path: "2026").plainPath) == ["2026 - 11 - 12 Event Develon"])
         #expect(project.fullPath == root.plainPath + "/")
         #expect(project.directoryCount == 19)
-        #expect(project.premiere == .foldersOnly)
+        #expect(!project.hasPremiereProject)
         #expect(try JSONDecoder().decode(RecentProject.self, from: JSONEncoder().encode(project)) == project)
     }
 

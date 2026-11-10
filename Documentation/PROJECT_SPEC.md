@@ -27,7 +27,9 @@ Event, PSC, PSH, Tour, Golf Tournament, TVC, Reels.
 - Drives are recognized by volume identifier and by where the saved bookmark resolves, not by name or mount path. Both resources are re-checked at launch, after a choice, when any volume is mounted, unmounted or renamed, and when the app becomes active.
 
 ## Settings
-Saved in `settings.json`, next to `folder-templates.json` (see Template storage for the real path). Format: `{ "schemaVersion": 1, "settings": {...} }`, atomic write after every change. Missing or invalid values fall back to safe defaults; an unreadable file is kept as `settings.damaged.json` and the user is told.
+Saved in `settings.json` (see Saved files). Missing or invalid values fall back to safe defaults. A damaged file is restored from `settings.backup.json`; defaults are used only when there is no backup either, and the user is told.
+
+Sections: **General** (default project type, recent projects to keep, after-creation options), **Locations** (destination, Premiere template, drive status), **Naming** (the fixed V1 rule `yyyy - MM - dd` + Project Type + Project Name with a live preview of the current New Project form; no other formats).
 
 Fields: `defaultProjectType`, `defaultDestinationURL`, `destinationBookmarkData`, `destinationVolume`, `useYearFolderFromProjectDate`, `premiereTemplateURL`, `premiereTemplateBookmarkData`, `premiereTemplateVolume`, `createPremiereProjectByDefault`, `openFinderAfterCreation`, `openPremiereAfterCreation`, `clearProjectNameAfterCreation`, `maximumRecentProjects`. Nothing confidential is stored; bookmark data is a macOS permission token that only this app can use.
 
@@ -54,11 +56,7 @@ Fields: `defaultProjectType`, `defaultDestinationURL`, `destinationBookmarkData`
 - Deleting a folder or a template asks for confirmation.
 
 ### Template storage
-- `folder-templates.json` in Application Support/PKProjectCreator. The app is sandboxed, so the real path is `~/Library/Containers/com.phankyfilm.PKProjectCreator/Data/Library/Application Support/PKProjectCreator/`.
-- Format: `{ "schemaVersion": 1, "templates": [...] }`. Every change is saved immediately with an atomic write.
-- Built-in templates are written only when no file and no backup exist (first launch). An existing file is never replaced by defaults.
-- `folder-templates.backup.json` holds the last valid file from before the latest save.
-- A file that can't be read (damaged, or saved by a newer app version) is moved to `folder-templates.damaged.json`, the backup is loaded (or the built-in templates if there is none), and the user is told.
+- `folder-templates.json` (see Saved files). Built-in templates are written only when no file and no backup exist (first launch). An existing file is never replaced by defaults.
 
 ## Project creation
 - The project is created at `{destination}/{yyyy}/{Generated Name}/` (or `{destination}/{Generated Name}/` with the year folder off). The year folder is created if it doesn't exist yet.
@@ -77,6 +75,24 @@ Fields: `defaultProjectType`, `defaultDestinationURL`, `destinationBookmarkData`
 - The master is only ever read: never renamed, moved, deleted, modified, or given new metadata. Its bookmark is read-only, so macOS itself would refuse a write.
 - Template states: Ready to copy · Template missing · {drive} disconnected · Permission denied / needed · Bookmark stale · Invalid template file (wrong extension or a folder) · Not selected. They are independent of the destination drive.
 - Open in Premiere Pro (after creating, or from the success dialog) opens the copy with the app macOS has registered for `.prproj`. If there is none or it fails to launch, the user is told; the project is kept.
+
+## Recent projects
+- Filled only from this app's own successful creations. Drives are never scanned and no record is ever invented.
+- Each record: id, project name, type, date, folder template id (and name), directory count, destination path (folder that contains the project), a bookmark of the project folder, volume identifier, Premiere relative path, created-at, has-Premiere.
+- Screen: search by name, filter by type, sort by date (or name / type), details, Reveal in Finder, Open in Premiere Pro, Copy Path, New Project Like This, Remove from List. Long names and paths stay on one line, shortened in the middle, with the full text in a tooltip and in the details.
+- Remove from List removes the entry only, after a confirmation. The project folder and `.prproj` are never deleted.
+- New Project Like This: same project type and folder template (or the type's default if that template is gone), the saved destination, today's date, empty name. Nothing is copied or changed.
+- Limit: default 20 (10 / 20 / 50 / 100 in Settings). Over the limit, the oldest entries leave the list; nothing on disk is deleted.
+- Status, checked at launch, on drive changes, when the app becomes active, and with Retry: Available · {drive} disconnected (entry kept, not marked deleted) · Missing (folder gone or moved; never recreated) · Permission needed. Premiere: Linked · Missing · Folders only · Unavailable.
+
+## Saved files
+All in `~/Library/Containers/com.phankyfilm.PKProjectCreator/Data/Library/Application Support/PKProjectCreator/` (the sandboxed form of `~/Library/Application Support/PKProjectCreator/`):
+- `settings.json`, `folder-templates.json`, `recent-projects.json`.
+- Each is `{ "schemaVersion": 1, "<settings|templates|projects>": … }`, written atomically after every change.
+- `*.backup.json` is the last valid version from before the latest save.
+- A file that can't be read (damaged, or written by a newer app version) is moved to `*.damaged.json`, never overwritten; the backup is restored, and the user is told. Without a backup: default settings, built-in templates, or an empty recent list.
+- Migration: a file with an older `schemaVersion` goes through that store's `migrate` step; a newer one is set aside as above.
+- Metadata only: no media, no project contents.
 
 ## Missing Premiere template policy
 Block creation until the template is available. Creating folders only requires the user to explicitly turn off "Create Premiere project from template". Incomplete projects are never created silently.

@@ -64,6 +64,8 @@ struct InfoRow: View {
     let value: String
     var monospaced = false
     var labelWidth: CGFloat = 72
+    /// One line, shortened in the middle; the full value is in the tooltip. For long paths.
+    var singleLine = false
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -73,6 +75,9 @@ struct InfoRow: View {
                 .frame(width: labelWidth, alignment: .leading)
             Text(value)
                 .font(monospaced ? Theme.mono : .body)
+                .lineLimit(singleLine ? 1 : nil)
+                .truncationMode(.middle)
+                .help(singleLine ? value : "")
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }

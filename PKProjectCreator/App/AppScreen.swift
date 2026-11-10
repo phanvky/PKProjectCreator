@@ -5,6 +5,7 @@ enum AppScreen: Hashable, CaseIterable {
     case recentProjects
     case folderTemplates
     case premiereTemplate
+    case resolveTemplate
     case settings
 
     var title: String {
@@ -13,6 +14,7 @@ enum AppScreen: Hashable, CaseIterable {
         case .recentProjects: "Recent Projects"
         case .folderTemplates: "Folder Templates"
         case .premiereTemplate: "Premiere Template"
+        case .resolveTemplate: "Resolve Template"
         case .settings: "Settings"
         }
     }
@@ -23,6 +25,7 @@ enum AppScreen: Hashable, CaseIterable {
         case .recentProjects: "clock"
         case .folderTemplates: "list.bullet.indent"
         case .premiereTemplate: "doc.text"
+        case .resolveTemplate: "doc.text"
         case .settings: "slider.horizontal.3"
         }
     }

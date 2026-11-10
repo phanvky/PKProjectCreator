@@ -9,6 +9,10 @@ struct AppSettings: Codable, Equatable {
         filePath: "/Volumes/WORK/TÀI NGUYÊN /PREMIERE PRO/PROJECT MODEL/Project/Year - Month - Day - Name 2026.prproj",
         directoryHint: .notDirectory
     )
+    static let suggestedResolveTemplateURL = URL(
+        filePath: "/Volumes/WORK/TÀI NGUYÊN /DAVINCI RESOLVE/PROJECT MODEL/Project Template.drp",
+        directoryHint: .notDirectory
+    )
     static let recentLimitOptions = [10, 20, 50, 100]
 
     var defaultProjectType: ProjectType = .event
@@ -26,6 +30,12 @@ struct AppSettings: Codable, Equatable {
     var premiereTemplateBookmarkData: Data?
     var premiereTemplateVolume: VolumeIdentity?
     var createPremiereProjectByDefault = true
+
+    /// The DaVinci Resolve master project (.drp); nil after the user clears it.
+    var resolveTemplateURL: URL? = suggestedResolveTemplateURL
+    var resolveTemplateBookmarkData: Data?
+    var resolveTemplateVolume: VolumeIdentity?
+    var createResolveProjectByDefault = false
 
     var openFinderAfterCreation = true
     var openPremiereAfterCreation = false
@@ -50,6 +60,13 @@ struct AppSettings: Codable, Equatable {
         premiereTemplateBookmarkData = try? values.decodeIfPresent(Data.self, forKey: .premiereTemplateBookmarkData)
         premiereTemplateVolume = try? values.decodeIfPresent(VolumeIdentity.self, forKey: .premiereTemplateVolume)
         createPremiereProjectByDefault = read(.createPremiereProjectByDefault, createPremiereProjectByDefault)
+        // Files saved before DaVinci Resolve support have no Resolve keys: keep the suggested template there.
+        if values.contains(.createResolveProjectByDefault) {
+            resolveTemplateURL = try? values.decodeIfPresent(URL.self, forKey: .resolveTemplateURL)
+        }
+        resolveTemplateBookmarkData = try? values.decodeIfPresent(Data.self, forKey: .resolveTemplateBookmarkData)
+        resolveTemplateVolume = try? values.decodeIfPresent(VolumeIdentity.self, forKey: .resolveTemplateVolume)
+        createResolveProjectByDefault = read(.createResolveProjectByDefault, createResolveProjectByDefault)
         openFinderAfterCreation = read(.openFinderAfterCreation, openFinderAfterCreation)
         openPremiereAfterCreation = read(.openPremiereAfterCreation, openPremiereAfterCreation)
         clearProjectNameAfterCreation = read(.clearProjectNameAfterCreation, clearProjectNameAfterCreation)

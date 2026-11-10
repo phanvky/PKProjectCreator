@@ -13,6 +13,7 @@ struct NewProjectView: View {
                     GeneratedNameSection()
                     DestinationSection()
                     PremiereSection()
+                    ResolveSection()
                 }
                 .padding(Theme.pagePadding)
             }
@@ -277,6 +278,60 @@ private struct PremiereSection: View {
 
                 ToggleRow("Open in Premiere Pro after creating", isOn: $app.settings.openPremiereAfterCreation)
                     .disabled(!app.draft.createPremiere)
+            }
+        }
+    }
+}
+
+// MARK: - DaVinci Resolve
+
+private struct ResolveSection: View {
+    @Environment(AppState.self) private var app
+
+    var body: some View {
+        @Bindable var app = app
+        let template = app.resolveTemplate
+        let isMissing = !template.isReady
+
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader("DaVinci Resolve")
+            FormCard {
+                HStack {
+                    Toggle("Create DaVinci Resolve project from template", isOn: $app.draft.createResolve)
+                    Spacer(minLength: 12)
+                    StatusBadge(text: template.templateLabel, kind: template.state.kind)
+                }
+                .padding(Theme.rowPadding)
+
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Text("Source")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 56, alignment: .leading)
+                    Image(systemName: "doc.fill").foregroundStyle(Theme.fileTint)
+                    Text(template.url?.lastPathComponent ?? "No template selected")
+                        .strikethrough(isMissing)
+                        .foregroundStyle(isMissing ? StatusKind.warning.color : Color.primary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer(minLength: 12)
+                    Button("Manage…") { app.screen = .resolveTemplate }
+                        .buttonStyle(.link)
+                }
+                .padding(Theme.rowPadding)
+                .opacity(app.draft.createResolve ? 1 : 0.45)
+
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Text("Output")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 56, alignment: .leading)
+                    Text(app.resolveOutputPath)
+                        .font(Theme.mono)
+                        .textSelection(.enabled)
+                }
+                .padding(Theme.rowPadding)
+                .opacity(app.draft.createResolve ? 1 : 0.45)
             }
         }
     }

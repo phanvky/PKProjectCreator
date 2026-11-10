@@ -6,6 +6,9 @@ nonisolated enum ProjectCreationError: LocalizedError, Equatable {
     case premiereTemplateUnavailable
     case premiereFolderMissing(String)
     case premiere(PremiereTemplateError)
+    case resolveTemplateUnavailable
+    case resolveFolderMissing(String)
+    case resolve(PremiereTemplateError)
     case destinationUnavailable(String)
     case destinationNotWritable(String)
     case alreadyExists(String)
@@ -20,6 +23,9 @@ nonisolated enum ProjectCreationError: LocalizedError, Equatable {
         case .premiereTemplateUnavailable: "The Premiere master template isn’t available. Choose it on Premiere Template, or turn off “Create Premiere project from template” to create the folders only. Nothing was created."
         case .premiereFolderMissing(let path): "The folder template has no “\(path)” folder for the Premiere project. Choose another folder in Premiere Template › Copy Into. Nothing was created."
         case .premiere(let error): "The Premiere project couldn’t be created. \(error.localizedDescription)\n\nNothing was created, and the master template was not changed."
+        case .resolveTemplateUnavailable: "The DaVinci Resolve master template isn’t available. Choose it on Resolve Template, or turn off “Create DaVinci Resolve project from template”. Nothing was created."
+        case .resolveFolderMissing(let path): "The folder template has no “\(path)” folder for the DaVinci Resolve project. Choose another folder in Resolve Template › Copy Into, or turn off “Create DaVinci Resolve project from template”. Nothing was created."
+        case .resolve(let error): "The DaVinci Resolve project couldn’t be created. \(error.localizedDescription)\n\nNothing was created, and the master template was not changed."
         case .destinationUnavailable(let path): "The destination folder can’t be reached:\n\(path)\n\nNothing was created."
         case .destinationNotWritable(let path): "PKProjectCreator isn’t allowed to create folders in:\n\(path)\n\nChoose the destination again to reauthorize it. Nothing was created."
         case .alreadyExists(let name): "A project named “\(name)” already exists in the destination. It was not changed. Use a different name or date."
@@ -30,7 +36,7 @@ nonisolated enum ProjectCreationError: LocalizedError, Equatable {
     }
 }
 
-/// Creates a project folder, and the Premiere project inside it, from a plan. The folder tree is built in a hidden staging folder next to the final
+/// Creates a project folder, and the Premiere and DaVinci Resolve projects inside it, from a plan. The folder tree is built in a hidden staging folder next to the final
 /// location (same volume) and renamed into place only when everything succeeded, so a failure never leaves a
 /// half-made project and an existing project is never overwritten or merged into.
 nonisolated struct ProjectCreationService: Sendable {
@@ -43,7 +49,7 @@ nonisolated struct ProjectCreationService: Sendable {
     /// `destination` and `premiereTemplate` must be the URLs macOS granted access to (see
     /// `FileAccessService.withAccess`), not paths rebuilt from text. Runs off the main actor.
     @concurrent
-    func create(_ plan: ProjectCreationPlan, in destination: URL, premiereTemplate: URL? = nil) async throws -> RecentProject {
+    func create(_ plan: ProjectCreationPlan, in destination: URL, premiereTemplate: URL? = nil, resolveTemplate: URL? = nil) async throws -> RecentProject {
         let files = FileManager.default
 
         if let issue = ProjectNameGenerator.issue(forProjectName: plan.projectName, generatedName: plan.generatedName) {
@@ -60,6 +66,17 @@ nonisolated struct ProjectCreationService: Sendable {
                 try PremiereTemplateService.validate(premiereTemplate)
             } catch let error as PremiereTemplateError {
                 throw ProjectCreationError.premiere(error)
+            }
+        }
+        if let resolveFolder = plan.resolveFolder {
+            guard plan.folders.allPaths.contains(resolveFolder) else {
+                throw ProjectCreationError.resolveFolderMissing(resolveFolder.joined(separator: "/"))
+            }
+            guard let resolveTemplate else { throw ProjectCreationError.resolveTemplateUnavailable }
+            do {
+                try PremiereTemplateService.validate(resolveTemplate, fileExtension: PremiereTemplateService.resolveExtension)
+            } catch let error as PremiereTemplateError {
+                throw ProjectCreationError.resolve(error)
             }
         }
 
@@ -91,6 +108,18 @@ nonisolated struct ProjectCreationService: Sendable {
                 let folder = premiereFolder.reduce(staging) { $0.appending(path: $1, directoryHint: .isDirectory) }
                 try willWrite(folder.appending(path: PremiereTemplateService.outputFilename(for: plan.generatedName)))
                 try PremiereTemplateService.copy(premiereTemplate, into: folder, generatedName: plan.generatedName)
+            }
+            if let resolveFolder = plan.resolveFolder, let resolveTemplate {
+                try Task.checkCancellation()
+                let folder = resolveFolder.reduce(staging) { $0.appending(path: $1, directoryHint: .isDirectory) }
+                let ext = PremiereTemplateService.resolveExtension
+                try willWrite(folder.appending(path: PremiereTemplateService.outputFilename(for: plan.generatedName, fileExtension: ext)))
+                do {
+                    let copy = try PremiereTemplateService.copy(resolveTemplate, into: folder, generatedName: plan.generatedName, fileExtension: ext)
+                    try ResolveProjectFile.setProjectName(plan.generatedName, in: copy)
+                } catch let error as PremiereTemplateError {
+                    throw ProjectCreationError.resolve(error)
+                }
             }
             try Task.checkCancellation()
             // A rename within one folder: it fails rather than replace anything that appeared meanwhile.

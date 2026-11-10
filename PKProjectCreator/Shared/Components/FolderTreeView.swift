@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Display model for a folder tree row: template folders plus the project root and the Premiere file.
+/// Display model for a folder tree row: template folders plus the project root and the project files (Premiere, Resolve).
 struct FolderTreeItem: Identifiable {
     enum Kind { case root, folder, file }
 
@@ -20,19 +20,19 @@ struct FolderTreeItem: Identifiable {
     }
 
     static func folders(_ nodes: [FolderNode]) -> [FolderTreeItem] {
-        items(from: nodes, parentPath: [], file: nil)
+        items(from: nodes, parentPath: [], files: [])
     }
 
-    /// Project root → template folders, with the Premiere file placed inside `file.folderPath`.
-    static func projectPreview(rootID: UUID, rootName: String, folders: [FolderNode], file: FilePlacement?) -> FolderTreeItem {
-        FolderTreeItem(id: rootID, name: rootName, kind: .root, children: items(from: folders, parentPath: [], file: file))
+    /// Project root → template folders, with each file placed inside its `folderPath`.
+    static func projectPreview(rootID: UUID, rootName: String, folders: [FolderNode], files: [FilePlacement]) -> FolderTreeItem {
+        FolderTreeItem(id: rootID, name: rootName, kind: .root, children: items(from: folders, parentPath: [], files: files))
     }
 
-    private static func items(from nodes: [FolderNode], parentPath: [String], file: FilePlacement?) -> [FolderTreeItem] {
+    private static func items(from nodes: [FolderNode], parentPath: [String], files: [FilePlacement]) -> [FolderTreeItem] {
         nodes.map { node in
             let path = parentPath + [node.name]
-            var children = items(from: node.children, parentPath: path, file: file)
-            if let file, file.folderPath == path {
+            var children = items(from: node.children, parentPath: path, files: files)
+            for file in files where file.folderPath == path {
                 children.append(FolderTreeItem(id: file.id, name: file.name, kind: .file, note: file.note, isMissing: file.isMissing))
             }
             return FolderTreeItem(id: node.id, name: node.name, kind: .folder, children: children)

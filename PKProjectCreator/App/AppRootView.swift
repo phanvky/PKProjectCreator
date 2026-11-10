@@ -18,7 +18,8 @@ struct AppRootView: View {
             case .newProject: NewProjectView()
             case .recentProjects: RecentProjectsView()
             case .folderTemplates: FolderTemplatesView()
-            case .premiereTemplate: PremiereTemplateView()
+            case .premiereTemplate: PremiereTemplateView(kind: .premiere)
+            case .resolveTemplate: PremiereTemplateView(kind: .resolve)
             case .settings: SettingsView()
             }
         }

@@ -76,6 +76,13 @@ Fields: `defaultProjectType`, `defaultDestinationURL`, `destinationBookmarkData`
 - Template states: Ready to copy · Template missing · {drive} disconnected · Permission denied / needed · Bookmark stale · Invalid template file (wrong extension or a folder) · Not selected. They are independent of the destination drive.
 - Open in Premiere Pro (after creating, or from the success dialog) opens the copy with the app macOS has registered for `.prproj`. If there is none or it fails to launch, the user is told; the project is kept.
 
+## DaVinci Resolve template copy
+- Optional, off by default: "Create DaVinci Resolve project from template" on New Project, with its own Resolve Template screen (same layout as Premiere Template: source, Copy Into, output name, behavior, status). "Copy template when creating a project" there turns it on by default.
+- Suggested master: `/Volumes/WORK/TÀI NGUYÊN /DAVINCI RESOLVE/PROJECT MODEL/Project Template.drp`, used only after the user chooses and authorizes it (read-only).
+- Copied into the Copy Into folder (default `04_Project/DaVinci Resolve/`) as `{Generated Name}.drp`. A `.drp` is a zip; in the copy only, the app sets `<ProjectName>` in `project.xml` to the generated name (Resolve shows it on import; confirmed in Resolve Studio 21). Everything else, including the Working Folders, stays as in the master; the user changes those in Resolve if needed.
+- Any failure rolls back the whole project. The master is never written.
+- No "Open in DaVinci Resolve" yet, and Recent Projects doesn't record the `.drp`.
+
 ## Recent projects
 - Filled only from this app's own successful creations. Drives are never scanned and no record is ever invented.
 - Each record: id, project name, type, date, folder template id (and name), directory count, destination path (folder that contains the project), a bookmark of the project folder, volume identifier, Premiere relative path, created-at, has-Premiere.

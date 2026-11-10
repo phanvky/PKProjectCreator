@@ -100,6 +100,10 @@ struct SettingsView: View {
                     "Premiere Pro master template", item: "Premiere template", resource: app.premiereTemplate,
                     path: app.premiereTemplate.url?.plainPath ?? "No template selected"
                 ) { app.choosePremiereTemplate() }
+                locationRow(
+                    "DaVinci Resolve master template", item: "DaVinci Resolve template", resource: app.resolveTemplate,
+                    path: app.resolveTemplate.url?.plainPath ?? "No template selected"
+                ) { app.chooseResolveTemplate() }
             }
             Text("PKProjectCreator can only use a folder or file after you choose it here. A suggested location is just the expected path.")
                 .font(.caption)

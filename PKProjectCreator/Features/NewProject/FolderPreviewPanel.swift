@@ -7,6 +7,7 @@ struct FolderPreviewPanel: View {
 
     private static let rootID = UUID()
     private static let premiereFileID = UUID()
+    private static let resolveFileID = UUID()
 
     var body: some View {
         let template = app.selectedTemplate
@@ -55,21 +56,31 @@ struct FolderPreviewPanel: View {
 
     /// Drawn from the same plan that Create Project executes.
     private func previewRoot(_ plan: ProjectCreationPlan) -> FolderTreeItem {
-        let file: FolderTreeItem.FilePlacement? = plan.createsPremiereProject
-            ? FolderTreeItem.FilePlacement(
+        var files: [FolderTreeItem.FilePlacement] = []
+        if plan.createsPremiereProject {
+            files.append(FolderTreeItem.FilePlacement(
                 id: Self.premiereFileID,
                 folderPath: app.premiere.destinationFolder,
                 name: "\(app.displayName).prproj",
                 note: app.premiereTemplate.isReady ? "from template" : "template not ready",
                 isMissing: !app.premiereTemplate.isReady
-            )
-            : nil
-        return FolderTreeItem.projectPreview(rootID: Self.rootID, rootName: app.displayName, folders: plan.folders, file: file)
+            ))
+        }
+        if plan.createsResolveProject {
+            files.append(FolderTreeItem.FilePlacement(
+                id: Self.resolveFileID,
+                folderPath: app.premiere.resolveFolder,
+                name: "\(app.displayName).\(PremiereTemplateService.resolveExtension)",
+                note: app.resolveTemplate.isReady ? "from template" : "template not ready",
+                isMissing: !app.resolveTemplate.isReady
+            ))
+        }
+        return FolderTreeItem.projectPreview(rootID: Self.rootID, rootName: app.displayName, folders: plan.folders, files: files)
     }
 
     private func summary(_ plan: ProjectCreationPlan) -> String {
-        let destinationExists = plan.folders.allPaths.contains(app.premiere.destinationFolder)
-        let files = plan.createsPremiereProject && destinationExists ? 1 : 0
+        let paths = plan.folders.allPaths
+        let files = [plan.premiereFolder, plan.resolveFolder].compactMap(\.self).filter(paths.contains).count
         return "\(plan.directoryCount) directories (root + \(plan.directoryCount - 1)) · \(files) \(files == 1 ? "file" : "files")"
     }
 

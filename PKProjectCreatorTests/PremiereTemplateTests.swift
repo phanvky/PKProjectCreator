@@ -102,6 +102,120 @@ struct PremiereTemplateTests {
         #expect(try snapshot(master) == before)
     }
 
+    // MARK: DaVinci Resolve
+
+    private func resolvePlan(in destination: URL, folders: [FolderNode]? = nil) throws -> ProjectCreationPlan {
+        let base = try plan(in: destination, folders: folders)
+        return ProjectCreationPlan(
+            date: base.date, type: base.type, projectName: base.projectName,
+            templateID: base.templateID, templateName: base.templateName, folders: base.folders,
+            destinationFolderURL: destination, useYearFolder: true,
+            createsPremiereProject: true, premiereFolder: ["04_Project", "Premiere Pro"],
+            createsResolveProject: true, resolveFolder: ["04_Project", "DaVinci Resolve"]
+        )
+    }
+
+    /// A small real `.drp`: a zip with `project.xml` first, like Resolve's own export.
+    private func makeDrp(in folder: URL, name: String = "Project Template.drp", projectXML: String? = nil) throws -> URL {
+        let source = try makeFolder("DrpSource")
+        defer { try? files.removeItem(at: source) }
+        let xml = projectXML ?? "<?xml version=\"1.0\"?><Project><ProjectName>Project Model</ProjectName><Name>Project Model.Cfg</Name></Project>"
+        try xml.write(to: source.appending(path: "project.xml"), atomically: true, encoding: .utf8)
+        try files.createDirectory(at: source.appending(path: "MediaPool/Master"), withIntermediateDirectories: true)
+        try "<MpFolder>Lễ hội</MpFolder>".write(to: source.appending(path: "MediaPool/Master/MpFolder.xml"), atomically: true, encoding: .utf8)
+        let url = folder.appending(path: name, directoryHint: .notDirectory)
+        let zip = Process()
+        zip.executableURL = URL(filePath: "/usr/bin/zip")
+        zip.arguments = ["-q", "-X", "-D", url.plainPath, "project.xml", "MediaPool/Master/MpFolder.xml"]
+        zip.currentDirectoryURL = source
+        try zip.run()
+        zip.waitUntilExit()
+        #expect(zip.terminationStatus == 0)
+        return url
+    }
+
+    /// One entry of a zip, read with the system `unzip`.
+    private func entry(_ path: String, of zipURL: URL) throws -> String {
+        let unzip = Process(), pipe = Pipe()
+        unzip.executableURL = URL(filePath: "/usr/bin/unzip")
+        unzip.arguments = ["-p", zipURL.plainPath, path]
+        unzip.standardOutput = pipe
+        try unzip.run()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        unzip.waitUntilExit()
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    @Test func copiesTheResolveMasterBesideThePremiereProject() async throws {
+        let destination = try makeFolder("Destination"), work = try makeFolder("Work")
+        defer { try? files.removeItem(at: destination); try? files.removeItem(at: work) }
+        let master = try makeMaster(in: work)
+        let resolveMaster = try makeDrp(in: work)
+        let before = try snapshot(resolveMaster)
+
+        let plan = try resolvePlan(in: destination)
+        #expect(plan.resolveOutputRelativePath == "04_Project/DaVinci Resolve/2026 - 11 - 12 Event Develon.drp")
+        _ = try await ProjectCreationService().create(plan, in: destination, premiereTemplate: master, resolveTemplate: resolveMaster)
+
+        let root = destination.appending(path: "2026/2026 - 11 - 12 Event Develon")
+        // The copy carries the generated name inside, so Resolve shows it on import; everything else is unchanged.
+        let copy = root.appending(path: "04_Project/DaVinci Resolve/2026 - 11 - 12 Event Develon.drp")
+        let xml = try entry("project.xml", of: copy)
+        #expect(xml.contains("<ProjectName>2026 - 11 - 12 Event Develon</ProjectName>"))
+        #expect(xml.contains("<Name>Project Model.Cfg</Name>"))
+        #expect(try entry("MediaPool/Master/MpFolder.xml", of: copy) == "<MpFolder>Lễ hội</MpFolder>")
+        #expect(try Data(contentsOf: root.appending(path: "04_Project/Premiere Pro/2026 - 11 - 12 Event Develon.prproj")) == fixtureBytes)
+        #expect(try snapshot(resolveMaster) == before)
+    }
+
+    @Test func badResolveSourcesAreRefusedAndNothingIsCreated() async throws {
+        let destination = try makeFolder("Destination"), work = try makeFolder("Work")
+        defer { try? files.removeItem(at: destination); try? files.removeItem(at: work) }
+        let service = ProjectCreationService()
+        let master = try makeMaster(in: work)
+
+        #expect(await error { _ = try await service.create(try resolvePlan(in: destination), in: destination, premiereTemplate: master) } == .resolveTemplateUnavailable)
+        let wrong = try makeMaster(in: work, name: "Other.prproj")
+        #expect(await error { _ = try await service.create(try resolvePlan(in: destination), in: destination, premiereTemplate: master, resolveTemplate: wrong) } == .resolve(.wrongExtension("Other.prproj")))
+        let noResolveFolder = FolderTemplate.standardProduction().nodes.map { node in
+            var node = node
+            node.children.removeAll { $0.name == "DaVinci Resolve" }
+            return node
+        }
+        let drp = try makeDrp(in: work)
+        #expect(await error { _ = try await service.create(try resolvePlan(in: destination, folders: noResolveFolder), in: destination, premiereTemplate: master, resolveTemplate: drp) } == .resolveFolderMissing("04_Project/DaVinci Resolve"))
+
+        #expect(try files.contentsOfDirectory(atPath: destination.plainPath).isEmpty)
+    }
+
+    @Test func aResolveFileWithoutAProjectNameIsRefusedAndRolledBack() async throws {
+        let destination = try makeFolder("Destination"), work = try makeFolder("Work")
+        defer { try? files.removeItem(at: destination); try? files.removeItem(at: work) }
+        let master = try makeMaster(in: work)
+        let unnamed = try makeDrp(in: work, projectXML: "<Project></Project>")
+        let failure = await error {
+            _ = try await ProjectCreationService().create(try resolvePlan(in: destination), in: destination, premiereTemplate: master, resolveTemplate: unnamed)
+        }
+        guard case .resolve(.resolveFileFailed) = failure else {
+            Issue.record("Expected a project name failure, got \(String(describing: failure))")
+            return
+        }
+        #expect(try files.contentsOfDirectory(atPath: destination.plainPath).isEmpty)
+    }
+
+    @Test func projectNamesAreEscapedForXML() {
+        #expect(ResolveProjectFile.escaped("A & B <C> \"D\" 'E'") == "A &amp; B &lt;C&gt; &quot;D&quot; &apos;E&apos;")
+    }
+
+    @Test func oldSettingsFilesKeepTheSuggestedResolveTemplate() throws {
+        let old = try JSONDecoder().decode(AppSettings.self, from: Data("{}".utf8))
+        #expect(old.resolveTemplateURL == AppSettings.suggestedResolveTemplateURL)
+        var cleared = AppSettings()
+        cleared.resolveTemplateURL = nil
+        let reloaded = try JSONDecoder().decode(AppSettings.self, from: try JSONEncoder().encode(cleared))
+        #expect(reloaded.resolveTemplateURL == nil)
+    }
+
     // MARK: Refusals before anything is written
 
     @Test func badSourcesAreRefusedAndNothingIsCreated() async throws {

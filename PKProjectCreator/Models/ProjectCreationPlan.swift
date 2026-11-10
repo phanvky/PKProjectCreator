@@ -20,12 +20,18 @@ nonisolated struct ProjectCreationPlan: Equatable, Sendable {
     let premiereFolder: [String]?
     /// e.g. `04_Project/Premiere Pro/2026 - 11 - 12 Event Develon.prproj`; nil when Premiere is off.
     let premiereOutputRelativePath: String?
+    /// The same for the DaVinci Resolve `.drp` copy, e.g. `["04_Project", "DaVinci Resolve"]`; nil when Resolve is off.
+    let resolveFolder: [String]?
+    let resolveOutputRelativePath: String?
+
+    var createsResolveProject: Bool { resolveFolder != nil }
 
     init(
         date: Date, type: ProjectType, projectName: String,
         templateID: FolderTemplate.ID?, templateName: String, folders: [FolderNode],
         destinationFolderURL: URL, useYearFolder: Bool,
-        createsPremiereProject: Bool, premiereFolder: [String]
+        createsPremiereProject: Bool, premiereFolder: [String],
+        createsResolveProject: Bool = false, resolveFolder: [String] = []
     ) {
         let name = ProjectNameGenerator.generatedName(date: date, type: type, projectName: projectName)
         generatedName = name
@@ -41,6 +47,10 @@ nonisolated struct ProjectCreationPlan: Equatable, Sendable {
         self.premiereFolder = createsPremiereProject ? premiereFolder : nil
         premiereOutputRelativePath = createsPremiereProject
             ? (premiereFolder + [PremiereTemplateService.outputFilename(for: name)]).joined(separator: "/")
+            : nil
+        self.resolveFolder = createsResolveProject ? resolveFolder : nil
+        resolveOutputRelativePath = createsResolveProject
+            ? (resolveFolder + [PremiereTemplateService.outputFilename(for: name, fileExtension: PremiereTemplateService.resolveExtension)]).joined(separator: "/")
             : nil
     }
 

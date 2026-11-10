@@ -1,7 +1,22 @@
 import SwiftUI
 
+/// The master project file screen. One screen serves both kinds: Premiere Pro (.prproj) and DaVinci Resolve (.drp).
 struct PremiereTemplateView: View {
+    enum Kind { case premiere, resolve }
+
     @Environment(AppState.self) private var app
+    var kind: Kind = .premiere
+
+    private var isPremiere: Bool { kind == .premiere }
+    private var appName: String { isPremiere ? "Premiere" : "DaVinci Resolve" }
+    private var fileExtension: String { isPremiere ? PremiereTemplateService.fileExtension : PremiereTemplateService.resolveExtension }
+    private var itemName: String { "\(appName) template" }
+    private var folderPath: WritableKeyPath<PremiereTemplateConfig, [String]> { isPremiere ? \.destinationFolder : \.resolveFolder }
+    private var copyByDefault: WritableKeyPath<AppSettings, Bool> {
+        isPremiere ? \.createPremiereProjectByDefault : \.createResolveProjectByDefault
+    }
+    private func choose() { isPremiere ? app.choosePremiereTemplate() : app.chooseResolveTemplate() }
+    private func clear() { isPremiere ? app.clearPremiereTemplate() : app.clearResolveTemplate() }
 
     var body: some View {
         ScrollView {
@@ -19,11 +34,11 @@ struct PremiereTemplateView: View {
             }
             .padding(Theme.pagePadding)
         }
-        .navigationTitle("Premiere Template")
+        .navigationTitle(isPremiere ? "Premiere Template" : "Resolve Template")
         .navigationSubtitle(subtitle)
     }
 
-    private var template: ResourceStatus { app.premiereTemplate }
+    private var template: ResourceStatus { isPremiere ? app.premiereTemplate : app.resolveTemplate }
 
     private var subtitle: String {
         template.state == .notSelected ? "No template selected" : "Template on \(template.volumeName) · \(template.templateLabel)"
@@ -50,7 +65,7 @@ struct PremiereTemplateView: View {
                                 .foregroundStyle(.secondary)
                                 .textSelection(.enabled)
                         }
-                        if template.url != nil, let problem = template.problem(item: "Premiere template") {
+                        if template.url != nil, let problem = template.problem(item: itemName) {
                             Text(problem)
                                 .font(.callout)
                                 .foregroundStyle(template.state.kind.color)
@@ -71,10 +86,10 @@ struct PremiereTemplateView: View {
                     Spacer()
                     Button("Reveal in Finder") { app.revealInFinder(template) }
                         .disabled(!template.isReady)
-                    Button("Clear") { app.clearPremiereTemplate() }
+                    Button("Clear") { clear() }
                         .disabled(template.url == nil)
                         .help("Forget this template. The file itself is not changed.")
-                    Button(template.chooseTitle) { app.choosePremiereTemplate() }
+                    Button(template.chooseTitle) { choose() }
                 }
                 .padding(Theme.rowPadding)
             }
@@ -85,7 +100,7 @@ struct PremiereTemplateView: View {
 
     private var copyIntoSection: some View {
         @Bindable var app = app
-        let current = app.premiere.destinationFolder
+        let current = app.premiere[keyPath: folderPath]
         let paths = app.selectedTemplate?.nodes.allPaths ?? []
         let options = paths.contains(current) ? paths : [current] + paths
 
@@ -93,7 +108,7 @@ struct PremiereTemplateView: View {
             SectionHeader("Copy Into")
             FormCard {
                 FormRow("Folder inside project") {
-                    Picker("Folder inside project", selection: $app.premiere.destinationFolder) {
+                    Picker("Folder inside project", selection: $app.premiere[dynamicMember: folderPath]) {
                         ForEach(options, id: \.self) { path in
                             Text(path.joined(separator: " › ")).tag(path)
                         }
@@ -117,15 +132,15 @@ struct PremiereTemplateView: View {
                     TokenChip(text: "Date · \(ProjectNameGenerator.datePattern)")
                     TokenChip(text: "Project Type")
                     TokenChip(text: "Project Name")
-                    Text(".prproj")
+                    Text(".\(fileExtension)")
                         .font(Theme.mono)
                         .foregroundStyle(.secondary)
                 }
                 .padding(Theme.rowPadding)
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("Pattern: date, project type, project name, dot prproj")
+                .accessibilityLabel("Pattern: date, project type, project name, dot \(fileExtension)")
 
-                InfoRow(label: "Preview", value: "\(app.displayName).prproj", monospaced: true, labelWidth: 56)
+                InfoRow(label: "Preview", value: "\(app.displayName).\(fileExtension)", monospaced: true, labelWidth: 56)
                     .padding(.vertical, 2)
             }
         }
@@ -139,13 +154,15 @@ struct PremiereTemplateView: View {
         return VStack(alignment: .leading, spacing: 8) {
             SectionHeader("Behavior")
             FormCard {
-                ToggleRow("Copy template when creating a project", isOn: $app.settings.createPremiereProjectByDefault)
-                ToggleRow("Open in Premiere Pro after creating", isOn: $app.settings.openPremiereAfterCreation)
+                ToggleRow("Copy template when creating a project", isOn: $app.settings[dynamicMember: copyByDefault])
+                if isPremiere {
+                    ToggleRow("Open in Premiere Pro after creating", isOn: $app.settings.openPremiereAfterCreation)
+                }
                 FormRow("If the template is missing") {
                     Text("Block project creation").foregroundStyle(.secondary)
                 }
             }
-            Text("To create folders only, turn off “Create Premiere project from template” on New Project. Incomplete projects are never created silently.")
+            Text("To skip this file, turn off “Create \(appName) project from template” on New Project. Incomplete projects are never created silently.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 6)
@@ -156,8 +173,8 @@ struct PremiereTemplateView: View {
 
     private var statusSection: some View {
         let folderTemplate = app.selectedTemplate
-        let destinationExists = folderTemplate?.nodes.allPaths.contains(app.premiere.destinationFolder) ?? false
-        let destination = app.premiere.destinationFolder.joined(separator: "/")
+        let destinationExists = folderTemplate?.nodes.allPaths.contains(app.premiere[keyPath: folderPath]) ?? false
+        let destination = app.premiere[keyPath: folderPath].joined(separator: "/")
 
         return VStack(alignment: .leading, spacing: 8) {
             SectionHeader("Template Status")
@@ -171,7 +188,7 @@ struct PremiereTemplateView: View {
                 }
                 StatusCheckRow(
                     title: "Template file",
-                    detail: template.isReady ? "Template found · ready to copy" : "\(template.templateLabel). \(template.problem(item: "Premiere template") ?? "")",
+                    detail: template.isReady ? "Template found · ready to copy" : "\(template.templateLabel). \(template.problem(item: itemName) ?? "")",
                     kind: template.state.kind
                 )
                 StatusCheckRow(
@@ -193,7 +210,7 @@ struct PremiereTemplateView: View {
     private var outputCheck: StatusCheckRow {
         switch app.nameIssue {
         case .none:
-            StatusCheckRow(title: "Output filename", detail: "\(app.generatedName).prproj", kind: .success)
+            StatusCheckRow(title: "Output filename", detail: "\(app.generatedName).\(fileExtension)", kind: .success)
         case .empty:
             StatusCheckRow(title: "Output filename", detail: "Waiting for a project name", kind: .neutral)
         case .some(let issue):

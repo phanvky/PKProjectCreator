@@ -19,6 +19,10 @@ struct SidebarView: View {
                     StatusDot(kind: app.premiereTemplate.state.kind)
                 }
                 .tag(AppScreen.premiereTemplate)
+                SidebarRow(screen: .resolveTemplate) {
+                    StatusDot(kind: app.resolveTemplate.state.kind)
+                }
+                .tag(AppScreen.resolveTemplate)
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {

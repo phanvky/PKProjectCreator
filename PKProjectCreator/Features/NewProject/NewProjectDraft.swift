@@ -8,6 +8,7 @@ struct NewProjectDraft {
     var templateID: FolderTemplate.ID?
     /// Turning this off is the explicit "folders only" choice.
     var createPremiere: Bool
+    var createResolve = false
 }
 
 extension AppState {
@@ -23,7 +24,8 @@ extension AppState {
             templateID: template?.id, templateName: template?.name ?? "", folders: template?.nodes ?? [],
             destinationFolderURL: destination.url ?? settings.defaultDestinationURL,
             useYearFolder: settings.useYearFolderFromProjectDate,
-            createsPremiereProject: draft.createPremiere, premiereFolder: premiere.destinationFolder
+            createsPremiereProject: draft.createPremiere, premiereFolder: premiere.destinationFolder,
+            createsResolveProject: draft.createResolve, resolveFolder: premiere.resolveFolder
         )
     }
 
@@ -44,6 +46,10 @@ extension AppState {
 
     var premiereOutputPath: String {
         (premiere.destinationFolder + ["\(displayName).prproj"]).joined(separator: "/")
+    }
+
+    var resolveOutputPath: String {
+        (premiere.resolveFolder + ["\(displayName).\(PremiereTemplateService.resolveExtension)"]).joined(separator: "/")
     }
 
     /// Why Create Project is unavailable right now, or nil when it can run.
@@ -69,6 +75,17 @@ extension AppState {
                 )
             }
         }
+        if draft.createResolve {
+            if let problem = resolveTemplate.problem(item: "DaVinci Resolve template") {
+                return StatusMessage(text: "\(problem) Or turn off “Create DaVinci Resolve project from template”.", kind: .warning)
+            }
+            if let template = selectedTemplate, !template.nodes.allPaths.contains(premiere.resolveFolder) {
+                return StatusMessage(
+                    text: "“\(template.name)” has no “\(premiere.resolveFolder.joined(separator: "/"))” folder for the DaVinci Resolve project. Choose another folder in Resolve Template › Copy Into, or turn off “Create DaVinci Resolve project from template”.",
+                    kind: .warning
+                )
+            }
+        }
         return nil
     }
 
@@ -76,10 +93,12 @@ extension AppState {
     var creationStatus: StatusMessage {
         if creationTask != nil { return StatusMessage(text: "Creating “\(generatedName)”…", kind: .neutral) }
         let plan = creationPlan
+        let extras = [plan.createsPremiereProject ? "the Premiere project" : nil, plan.createsResolveProject ? "the DaVinci Resolve project" : nil]
+            .compactMap(\.self)
+        let items = ["\(plan.directoryCount) folders"] + extras
+        let what = items.dropLast().joined(separator: ", ") + (items.count > 1 ? " and " : "") + items.last!
         return creationBlocker ?? StatusMessage(
-            text: plan.createsPremiereProject
-                ? "Ready to create \(plan.directoryCount) folders and the Premiere project in \(plan.yearFolderURL.lastPathComponent)."
-                : "Ready to create \(plan.directoryCount) folders in \(plan.yearFolderURL.lastPathComponent).",
+            text: "Ready to create \(what) in \(plan.yearFolderURL.lastPathComponent).",
             kind: .success
         )
     }

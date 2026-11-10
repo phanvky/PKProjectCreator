@@ -64,6 +64,7 @@ Documentation/           Specs, plan, DesignReferences/
 - The output name comes from `PremiereTemplateService.outputFilename(for: plan.generatedName)`; `ProjectCreationPlan.premiereOutputRelativePath` uses the same function, so preview and result can't differ.
 - `FileAccessService.check(..., fileExtension:)` adds the file checks (extension, regular file, readable) for the template; `ResourceStatus.templateLabel` gives the Premiere wording.
 - `AppState.openInPremiere` reopens the destination's security scope, asks `NSWorkspace.urlForApplication(toOpen:)` for the registered app and opens the file with it. Errors only set `notice`.
+- DaVinci Resolve: the same flow with a third optional bookmark (`AppState.withAccess(to: Data?)` nests the accesses). `PremiereTemplateService.copy(..., fileExtension: "drp")` copies the master, then `ResolveProjectFile.prepare` unzips the copy in the app's temporary folder (`/usr/bin/unzip`, `zip`, `zipinfo`), sets `<ProjectName>`, then zips it back with the original entry order. The Working Folders (in a zstd-compressed settings blob) are deliberately left untouched.
 - The service receives the URL macOS resolved from the bookmark and places the plan's relative parts (year folder, project name) under it; it never rebuilds a path from saved text.
 - `FolderNode`, `ProjectCreationPlan`, `RecentProject` and the name / folder rules are `nonisolated` and `Sendable` so they can cross to the background.
 

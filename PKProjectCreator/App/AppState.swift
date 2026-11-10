@@ -21,6 +21,8 @@ final class AppState {
     private(set) var destination = ResourceStatus()
     /// The Premiere master project file (on WORK by default).
     private(set) var premiereTemplate = ResourceStatus()
+    /// The DaVinci Resolve master project file (.drp, on WORK by default).
+    private(set) var resolveTemplate = ResourceStatus()
     /// Projects this app created, newest first, at most `settings.maximumRecentProjects`. Never filled by scanning drives.
     private(set) var recentProjects: [RecentProject]
     /// Where each recent project stands right now (available, drive disconnected, missing…).
@@ -67,7 +69,10 @@ final class AppState {
 
     func resetDraft() {
         let type = settings.defaultProjectType
-        draft = NewProjectDraft(type: type, templateID: defaultTemplate(for: type)?.id, createPremiere: settings.createPremiereProjectByDefault)
+        draft = NewProjectDraft(
+            type: type, templateID: defaultTemplate(for: type)?.id,
+            createPremiere: settings.createPremiereProjectByDefault, createResolve: settings.createResolveProjectByDefault
+        )
     }
 
     /// A fresh form with the same type and folder template as `project`: today's date, an empty name, and the
@@ -88,18 +93,18 @@ final class AppState {
         let plan = creationPlan
         let templateBookmark = plan.createsPremiereProject ? settings.premiereTemplateBookmarkData : nil
         guard !plan.createsPremiereProject || templateBookmark != nil else { return }
+        let resolveBookmark = plan.createsResolveProject ? settings.resolveTemplateBookmarkData : nil
+        guard !plan.createsResolveProject || resolveBookmark != nil else { return }
 
         creationTask = Task {
             defer { creationTask = nil }
             do {
-                // KIOXIA and WORK are separate permissions; both stay open until the creation has finished.
+                // The destination and each template are separate permissions; all stay open until the creation has finished.
                 let project = try await fileAccess.withAccess(to: destinationBookmark) { destination, _ in
-                    var project = if let templateBookmark {
-                        try await fileAccess.withAccess(to: templateBookmark) { template, _ in
-                            try await creationService.create(plan, in: destination, premiereTemplate: template)
+                    var project = try await withAccess(to: templateBookmark) { premiere in
+                        try await withAccess(to: resolveBookmark) { resolve in
+                            try await creationService.create(plan, in: destination, premiereTemplate: premiere, resolveTemplate: resolve)
                         }
-                    } else {
-                        try await creationService.create(plan, in: destination)
                     }
                     // Remember the new folder itself, so Recent Projects can reach it even if the destination changes.
                     if let grant = try? fileAccess.authorize(project.rootURL, readOnly: false) {
@@ -118,6 +123,12 @@ final class AppState {
                 refreshResources()
             }
         }
+    }
+
+    /// Runs `body` with the granted URL of `bookmark`, or with nil when there is no bookmark.
+    private func withAccess<T: Sendable>(to bookmark: Data?, _ body: (URL?) async throws -> T) async throws -> T {
+        guard let bookmark else { return try await body(nil) }
+        return try await fileAccess.withAccess(to: bookmark) { url, _ in try await body(url) }
     }
 
     /// Opens the project's `.prproj` with the app macOS has registered for it. A failure here is only
@@ -364,6 +375,16 @@ final class AppState {
         updated.premiereTemplateVolume = templateCheck.volume
         if templateCheck.status.isReady, let url = templateCheck.status.url { updated.premiereTemplateURL = url }
 
+        let resolveCheck = fileAccess.check(
+            bookmark: updated.resolveTemplateBookmarkData, lastKnownURL: updated.resolveTemplateURL,
+            volume: updated.resolveTemplateVolume, readOnly: true,
+            fileExtension: PremiereTemplateService.resolveExtension
+        )
+        if resolveTemplate != resolveCheck.status { resolveTemplate = resolveCheck.status }
+        updated.resolveTemplateBookmarkData = resolveCheck.renewedBookmark ?? updated.resolveTemplateBookmarkData
+        updated.resolveTemplateVolume = resolveCheck.volume
+        if resolveCheck.status.isReady, let url = resolveCheck.status.url { updated.resolveTemplateURL = url }
+
         settings = updated
         refreshRecentProjects()
     }
@@ -419,6 +440,42 @@ final class AppState {
         updated.premiereTemplateURL = nil
         updated.premiereTemplateBookmarkData = nil
         updated.premiereTemplateVolume = nil
+        settings = updated
+        refreshResources()
+    }
+
+    func chooseResolveTemplate() {
+        let message = "Choose the DaVinci Resolve master project (.drp). It is only ever read, never changed."
+        let folder = resolveTemplate.url?.deletingLastPathComponent()
+        let ext = PremiereTemplateService.resolveExtension
+        if let url = OpenPanels.chooseFile(message: message, fileExtension: ext, startingAt: folder) { setResolveTemplate(url) }
+    }
+
+    /// Remembers a `.drp` file the user picked as the DaVinci Resolve master template.
+    func setResolveTemplate(_ url: URL) {
+        guard url.pathExtension.lowercased() == PremiereTemplateService.resolveExtension else {
+            notice = "“\(url.lastPathComponent)” isn’t a DaVinci Resolve project. Choose a file ending in .drp."
+            return
+        }
+        do {
+            let grant = try fileAccess.authorize(url, readOnly: true)
+            var updated = settings
+            updated.resolveTemplateURL = url
+            updated.resolveTemplateBookmarkData = grant.bookmark
+            updated.resolveTemplateVolume = grant.volume
+            settings = updated
+            refreshResources()
+        } catch {
+            notice = "PKProjectCreator couldn’t keep permission for “\(url.lastPathComponent)”: \(error.localizedDescription)"
+        }
+    }
+
+    /// Forgets the Resolve template and its permission. The file itself is not touched.
+    func clearResolveTemplate() {
+        var updated = settings
+        updated.resolveTemplateURL = nil
+        updated.resolveTemplateBookmarkData = nil
+        updated.resolveTemplateVolume = nil
         settings = updated
         refreshResources()
     }

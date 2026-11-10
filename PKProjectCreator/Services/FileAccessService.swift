@@ -97,6 +97,14 @@ struct FileAccessService {
         return try body(resolved.url, resolved.isStale)
     }
 
+    /// The same for work that runs off the main actor: access stays open until `body` has finished.
+    func withAccess<T: Sendable>(to bookmark: Data, _ body: (_ url: URL, _ isStale: Bool) async throws -> T) async throws -> T {
+        guard let resolved = try? system.resolveBookmark(bookmark) else { throw FileAccessError.cannotResolve }
+        guard system.startAccessing(resolved.url) else { throw FileAccessError.permissionDenied }
+        defer { system.stopAccessing(resolved.url) }
+        return try await body(resolved.url, resolved.isStale)
+    }
+
     /// The current state of one resource. A path that merely looks right is never reported as ready:
     /// only a bookmark that resolves, grants access and points at something that exists is `.authorized`.
     func check(bookmark: Data?, lastKnownURL: URL?, volume: VolumeIdentity?, readOnly: Bool) -> Check {

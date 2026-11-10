@@ -1,12 +1,15 @@
 import Foundation
 
-nonisolated struct RecentProject: Identifiable, Hashable {
-    enum PremiereLink: String {
+/// One created project. Codable so the list can be saved once Recent Projects persistence exists.
+nonisolated struct RecentProject: Identifiable, Hashable, Codable, Sendable {
+    enum PremiereLink: String, Codable {
         case linked = "Linked"
         case missing = "Missing"
+        /// Created without a Premiere project, by the user's choice.
+        case foldersOnly = "Folders only"
     }
 
-    let id = UUID()
+    var id = UUID()
     var date: Date
     var type: ProjectType
     var projectName: String
@@ -18,7 +21,7 @@ nonisolated struct RecentProject: Identifiable, Hashable {
     var parentFolder: String
 
     var name: String {
-        ProjectNaming.generatedName(date: date, type: type, projectName: projectName)
+        ProjectNameGenerator.generatedName(date: date, type: type, projectName: projectName)
     }
 
     var fullPath: String { "\(parentFolder)/\(name)/" }

@@ -1,7 +1,7 @@
 import SwiftUI
 
-// DESIGN-ONLY (Phase 01): these dialogs are shown in Xcode Previews for visual review.
-// The running app never presents them until real project creation exists.
+// ProjectCreatedDialog is shown by New Project after a project is created.
+// DriveNotConnectedDialog is still design-only (Xcode Previews): a disconnected drive disables Create Project instead.
 
 struct ProjectCreatedDialog: View {
     let projectName: String

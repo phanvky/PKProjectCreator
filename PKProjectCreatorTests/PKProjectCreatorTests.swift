@@ -3,42 +3,40 @@ import Testing
 @testable import PKProjectCreator
 
 @MainActor
-struct ProjectNamingTests {
+struct ProjectNameGeneratorTests {
     private func date(_ year: Int, _ month: Int, _ day: Int) throws -> Date {
         let components = DateComponents(year: year, month: month, day: day, hour: 12)
         return try #require(Calendar(identifier: .gregorian).date(from: components))
     }
 
     @Test func generatedNameMatchesApprovedFormat() throws {
-        let name = ProjectNaming.generatedName(date: try date(2026, 11, 12), type: .event, projectName: "Develon")
+        let name = ProjectNameGenerator.generatedName(date: try date(2026, 11, 12), type: .event, projectName: "Develon")
         #expect(name == "2026 - 11 - 12 Event Develon")
     }
 
     @Test func placeholderWhileNameIsEmpty() throws {
-        let name = ProjectNaming.displayName(date: try date(2026, 1, 5), type: .golfTournament, projectName: "  ")
+        let name = ProjectNameGenerator.displayName(date: try date(2026, 1, 5), type: .golfTournament, projectName: "  ")
         #expect(name == "2026 - 01 - 05 Golf Tournament [Project Name]")
     }
 
     @Test(arguments: ["Lễ hội Đà Lạt", "Tom & Jerry's (Day-1)", "Develon"])
     func acceptsValidNames(_ input: String) {
-        #expect(ProjectNaming.issue(forProjectName: input, generatedName: "2026 - 11 - 12 Event \(input)") == nil)
+        #expect(ProjectNameGenerator.issue(forProjectName: input, generatedName: "2026 - 11 - 12 Event \(input)") == nil)
     }
 
     @Test func rejectsInvalidNames() {
-        #expect(ProjectNaming.issue(forProjectName: "", generatedName: "") == .empty)
-        #expect(ProjectNaming.issue(forProjectName: "   ", generatedName: "") == .empty)
-        #expect(ProjectNaming.issue(forProjectName: "Develon / Gala", generatedName: "x") == .forbiddenCharacter)
-        #expect(ProjectNaming.issue(forProjectName: "A:B", generatedName: "x") == .forbiddenCharacter)
-        #expect(ProjectNaming.issue(forProjectName: "A\tB", generatedName: "x") == .controlCharacter)
+        #expect(ProjectNameGenerator.issue(forProjectName: "", generatedName: "") == .empty)
+        #expect(ProjectNameGenerator.issue(forProjectName: "   ", generatedName: "") == .empty)
+        #expect(ProjectNameGenerator.issue(forProjectName: "Develon / Gala", generatedName: "x") == .forbiddenCharacter)
+        #expect(ProjectNameGenerator.issue(forProjectName: "A:B", generatedName: "x") == .forbiddenCharacter)
+        #expect(ProjectNameGenerator.issue(forProjectName: "A\tB", generatedName: "x") == .controlCharacter)
         let long = String(repeating: "Đ", count: 130)
-        #expect(ProjectNaming.issue(forProjectName: long, generatedName: long) == .tooLong)
+        #expect(ProjectNameGenerator.issue(forProjectName: long, generatedName: long) == .tooLong)
     }
 
-    @Test func destinationUsesProjectYear() throws {
-        let base = "/Volumes/KIOXIA/PROJECT VIDEO/EVENT"
-        let day = try date(2027, 3, 1)
-        #expect(ProjectNaming.destinationFolder(base: base, date: day, useYearFolder: true) == "\(base)/2027")
-        #expect(ProjectNaming.destinationFolder(base: base, date: day, useYearFolder: false) == base)
+    @Test func rejectsNULAndPathSeparators() {
+        #expect(ProjectNameGenerator.issue(forProjectName: "A\0B", generatedName: "x") == .controlCharacter)
+        #expect(ProjectNameGenerator.issue(forProjectName: "../Other", generatedName: "x") == .forbiddenCharacter)
     }
 }
 

@@ -12,14 +12,17 @@ Not done on purpose: template description can't be edited in the app; drag and d
 `AppSettings` saved to `settings.json` (schema version, atomic write, safe defaults); destination folder and Premiere template chosen through `NSOpenPanel` and remembered as security-scoped bookmarks; one `FileAccessService` for all bookmark work; independent live status for the destination drive and the template drive (mount / unmount / rename notifications); Choose, Reauthorize, Clear and Reveal in Finder; sandbox entitlement changed from user-selected read-only to read-write.
 Not done on purpose: no project creation and no Premiere copy yet; the "Copy Into" folder choice on the Premiere screen is still in memory only; recent projects are still sample data.
 
-## Phase 04 — Project creation (recommended next)
-- Create folder tree atomically (create in temp name, rename on success; never overwrite an existing folder).
-- Copy `.prproj` (copy, never modify source); honour the "block if missing" policy.
-- Success / error dialogs from `CreationResultDialogs.swift`.
-- Open in Premiere Pro, Reveal in Finder, clear name option.
+## Phase 04 — Project creation engine ✅
+`ProjectNameGenerator` (renamed from `ProjectNaming`); immutable `ProjectCreationPlan` shared by the preview and the creation; `ProjectCreationService` builds the folder tree in a staging folder and renames it into place (never overwrites, never merges, cleans up on failure or cancellation); New Project creates real folders with progress, Cancel, duplicate / permission errors and the success dialog; `RecentProject` is Codable, ready for saving.
+Not done on purpose: no Premiere copy. While "Create Premiere project from template" is on, Create Project is disabled and says why; folders-only creation needs it turned off. Created projects are not added to Recent Projects yet (that list is still sample data).
 
-## Phase 05 — Persistence
+## Phase 05 — Premiere template copy (recommended next)
+- Copy the `.prproj` into the staging folder before the final rename (copy, never modify the source), named `[Generated Name].prproj`, inside the "Copy Into" folder.
+- Remove the phase gate in `AppState.creationBlocker` and `ProjectCreationService.create`.
+- Open in Premiere Pro after creating.
+
+## Phase 06 — Recent projects persistence
 - Recent projects list (limit from Settings), verify each path on launch.
 
-## Phase 06 — Polish & distribution
+## Phase 07 — Polish & distribution
 - Reels — Lite hierarchy (once supplied; it can already be entered by hand in Folder Templates), keyboard shortcuts, accessibility pass, app icon, signing/notarization, DMG.

@@ -15,25 +15,30 @@ extension AppState {
         templates.first { $0.id == draft.templateID } ?? templates.first
     }
 
-    var generatedName: String {
-        ProjectNaming.generatedName(date: draft.date, type: draft.type, projectName: draft.projectName)
+    /// The one description of what Create Project will do. The preview and the creation both read it.
+    var creationPlan: ProjectCreationPlan {
+        let template = selectedTemplate
+        return ProjectCreationPlan(
+            date: draft.date, type: draft.type, projectName: draft.projectName,
+            templateID: template?.id, templateName: template?.name ?? "", folders: template?.nodes ?? [],
+            destinationFolderURL: destination.url ?? settings.defaultDestinationURL,
+            useYearFolder: settings.useYearFolderFromProjectDate,
+            createsPremiereProject: draft.createPremiere, premiereFolder: premiere.destinationFolder
+        )
     }
+
+    var generatedName: String { creationPlan.generatedName }
 
     /// Generated name, or the "[Project Name]" placeholder while the name is empty.
     var displayName: String {
-        ProjectNaming.displayName(date: draft.date, type: draft.type, projectName: draft.projectName)
+        ProjectNameGenerator.displayName(date: draft.date, type: draft.type, projectName: draft.projectName)
     }
 
     var nameIssue: ProjectNameIssue? {
-        ProjectNaming.issue(forProjectName: draft.projectName, generatedName: generatedName)
+        ProjectNameGenerator.issue(forProjectName: draft.projectName, generatedName: generatedName)
     }
 
-    var destinationFolder: String {
-        ProjectNaming.destinationFolder(
-            base: (destination.url ?? settings.defaultDestinationURL).plainPath,
-            date: draft.date, useYearFolder: settings.useYearFolderFromProjectDate
-        )
-    }
+    var destinationFolder: String { creationPlan.yearFolderURL.plainPath }
 
     var projectPath: String { "\(destinationFolder)/\(displayName)/" }
 
@@ -41,8 +46,8 @@ extension AppState {
         (premiere.destinationFolder + ["\(displayName).prproj"]).joined(separator: "/")
     }
 
-    /// What the bottom bar says. Creation itself is not implemented yet.
-    var creationStatus: StatusMessage {
+    /// Why Create Project is unavailable right now, or nil when it can run.
+    var creationBlocker: StatusMessage? {
         if let issue = nameIssue {
             return StatusMessage(text: issue.message, kind: issue == .empty ? .neutral : .danger)
         }
@@ -52,9 +57,25 @@ extension AppState {
         if let problem = destination.problem(item: "destination folder") {
             return StatusMessage(text: problem, kind: .warning)
         }
-        if draft.createPremiere, let problem = premiereTemplate.problem(item: "Premiere template") {
-            return StatusMessage(text: "\(problem) Or turn off “Create Premiere project from template”.", kind: .warning)
+        if draft.createPremiere {
+            if let problem = premiereTemplate.problem(item: "Premiere template") {
+                return StatusMessage(text: "\(problem) Or turn off “Create Premiere project from template”.", kind: .warning)
+            }
+            // Phase gate: remove once the Premiere template copy exists (Phase 05).
+            return StatusMessage(
+                text: "Creating the Premiere project isn’t available yet. Turn off “Create Premiere project from template” to create the folders only.",
+                kind: .warning
+            )
         }
-        return StatusMessage(text: "Project creation will be enabled in a later phase.", kind: .neutral)
+        return nil
+    }
+
+    /// What the bottom bar says.
+    var creationStatus: StatusMessage {
+        if creationTask != nil { return StatusMessage(text: "Creating “\(generatedName)”…", kind: .neutral) }
+        let plan = creationPlan
+        return creationBlocker ?? StatusMessage(
+            text: "Ready to create \(plan.directoryCount) folders in \(plan.yearFolderURL.lastPathComponent).", kind: .success
+        )
     }
 }

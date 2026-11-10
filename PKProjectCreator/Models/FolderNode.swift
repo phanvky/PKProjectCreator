@@ -2,7 +2,7 @@ import Foundation
 
 /// One folder in a template hierarchy. The project root is not a node; it is added at creation time.
 /// Folders are identified by `id`, never by name.
-struct FolderNode: Identifiable, Hashable, Codable {
+nonisolated struct FolderNode: Identifiable, Hashable, Codable, Sendable {
     let id: UUID
     var name: String
     var children: [FolderNode]
@@ -14,7 +14,7 @@ struct FolderNode: Identifiable, Hashable, Codable {
     }
 }
 
-extension Array where Element == FolderNode {
+nonisolated extension Array where Element == FolderNode {
     /// Number of folders at every depth (the project root is not counted).
     var totalCount: Int {
         reduce(0) { $0 + 1 + $1.children.totalCount }

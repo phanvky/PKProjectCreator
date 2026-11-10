@@ -10,12 +10,13 @@ struct FolderPreviewPanel: View {
 
     var body: some View {
         let template = app.selectedTemplate
-        let root = previewRoot(template)
+        let plan = app.creationPlan
+        let root = previewRoot(plan)
 
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader("Folder Preview") {
                 HStack(spacing: 10) {
-                    Text(summary(template))
+                    Text(summary(plan))
                     Button {
                         collapsed = []
                     } label: {
@@ -52,9 +53,9 @@ struct FolderPreviewPanel: View {
         }
     }
 
-    private func previewRoot(_ template: FolderTemplate?) -> FolderTreeItem {
-        let folders = template?.nodes ?? []
-        let file: FolderTreeItem.FilePlacement? = app.draft.createPremiere
+    /// Drawn from the same plan that Create Project executes.
+    private func previewRoot(_ plan: ProjectCreationPlan) -> FolderTreeItem {
+        let file: FolderTreeItem.FilePlacement? = plan.createsPremiereProject
             ? FolderTreeItem.FilePlacement(
                 id: Self.premiereFileID,
                 folderPath: app.premiere.destinationFolder,
@@ -63,14 +64,13 @@ struct FolderPreviewPanel: View {
                 isMissing: !app.premiereTemplate.isReady
             )
             : nil
-        return FolderTreeItem.projectPreview(rootID: Self.rootID, rootName: app.displayName, folders: folders, file: file)
+        return FolderTreeItem.projectPreview(rootID: Self.rootID, rootName: app.displayName, folders: plan.folders, file: file)
     }
 
-    private func summary(_ template: FolderTemplate?) -> String {
-        let count = template?.folderCount ?? 0
-        let destinationExists = template?.nodes.allPaths.contains(app.premiere.destinationFolder) ?? false
-        let files = app.draft.createPremiere && destinationExists ? 1 : 0
-        return "\(count + 1) directories (root + \(count)) · \(files) \(files == 1 ? "file" : "files")"
+    private func summary(_ plan: ProjectCreationPlan) -> String {
+        let destinationExists = plan.folders.allPaths.contains(app.premiere.destinationFolder)
+        let files = plan.createsPremiereProject && destinationExists ? 1 : 0
+        return "\(plan.directoryCount) directories (root + \(plan.directoryCount - 1)) · \(files) \(files == 1 ? "file" : "files")"
     }
 
     private static func folderIDsWithChildren(_ items: [FolderTreeItem]) -> [UUID] {

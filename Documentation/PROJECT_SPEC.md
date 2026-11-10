@@ -60,6 +60,16 @@ Fields: `defaultProjectType`, `defaultDestinationURL`, `destinationBookmarkData`
 - `folder-templates.backup.json` holds the last valid file from before the latest save.
 - A file that can't be read (damaged, or saved by a newer app version) is moved to `folder-templates.damaged.json`, the backup is loaded (or the built-in templates if there is none), and the user is told.
 
+## Project creation
+- The project is created at `{destination}/{yyyy}/{Generated Name}/` (or `{destination}/{Generated Name}/` with the year folder off). The year folder is created if it doesn't exist yet.
+- Choose the folder that should contain the year folders (e.g. `EVENT`) as the destination, not a year folder itself: choosing `EVENT/2026` with the year folder on creates `EVENT/2026/2026/…`.
+- The folders created are exactly the selected template's folders: 18 for Standard Production, 19 directories with the project root. Nothing else.
+- An existing project is never overwritten and never merged into: if a folder with the generated name already exists (letter case ignored, as on Mac volumes), creation is refused.
+- Creation is all-or-nothing. The tree is built in a hidden staging folder (`.PKProjectCreator-Staging-{UUID}`) next to the final location and renamed into place only at the end. On failure or cancellation the staging folder is removed, a year folder made by this run is removed if still empty, and nothing else is touched. If the staging folder can't be removed, the error says where it is.
+- Checked before anything is written: project name, template has folders, destination authorized, reachable and writable, no duplicate.
+- Until the Premiere copy exists (Phase 05), creation with "Create Premiere project from template" on is blocked; a Premiere project is never reported as created when it wasn't.
+- Safe manual test: make an empty folder (e.g. `PK Test` on the Desktop), choose it as the destination with **Choose Another…**, turn off "Create Premiere project from template", type a name, click **Create Project**. Afterwards choose the real destination again and delete `PK Test`.
+
 ## Missing Premiere template policy
 Block creation until the template is available. Creating folders only requires the user to explicitly turn off "Create Premiere project from template". Incomplete projects are never created silently.
 

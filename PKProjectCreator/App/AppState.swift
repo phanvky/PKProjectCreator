@@ -20,16 +20,25 @@ final class AppState {
     /// Sample rows only (see `RecentProject.samples`); real history arrives with persistence.
     var recentProjects = RecentProject.samples
     var draft = NewProjectDraft(type: .event, createPremiere: true)
+    /// Running while a project is being created; nil otherwise.
+    private(set) var creationTask: Task<Void, Never>?
+    /// The project that was just created, shown in the success dialog.
+    var createdProject: RecentProject?
 
     private let templateStore: FolderTemplateStore?
     private let settingsStore: SettingsStore?
     private let fileAccess: FileAccessService
+    private let creationService: ProjectCreationService
 
     /// `directory` is where settings and templates are saved; pass `nil` to keep everything in memory (previews).
-    init(directory: URL? = .appSupportFolder, fileAccess: FileAccessService = FileAccessService()) {
+    init(
+        directory: URL? = .appSupportFolder, fileAccess: FileAccessService = FileAccessService(),
+        creationService: ProjectCreationService = ProjectCreationService()
+    ) {
         templateStore = directory.map(FolderTemplateStore.init)
         settingsStore = directory.map(SettingsStore.init)
         self.fileAccess = fileAccess
+        self.creationService = creationService
 
         let loadedSettings = settingsStore?.load()
         settings = loadedSettings?.settings ?? AppSettings()
@@ -54,6 +63,35 @@ final class AppState {
         draft.projectName = project.projectName
         draft.templateID = templates.first { $0.name == project.templateName }?.id ?? defaultTemplate(for: project.type)?.id
         screen = .newProject
+    }
+
+    /// Creates the project described by `creationPlan`. The disk work runs off the main actor, inside the
+    /// access macOS granted for the destination folder.
+    func createProject() {
+        guard creationTask == nil, creationBlocker == nil, let bookmark = settings.destinationBookmarkData else { return }
+        let plan = creationPlan
+        creationTask = Task {
+            defer { creationTask = nil }
+            do {
+                let project = try await fileAccess.withAccess(to: bookmark) { url, _ in
+                    try await creationService.create(plan, in: url)
+                }
+                createdProject = project
+                if settings.clearProjectNameAfterCreation { draft.projectName = "" }
+                if settings.openFinderAfterCreation { revealInFinder(project) }
+            } catch {
+                notice = error.localizedDescription
+                refreshResources()
+            }
+        }
+    }
+
+    func cancelCreation() {
+        creationTask?.cancel()
+    }
+
+    func revealInFinder(_ project: RecentProject) {
+        NSWorkspace.shared.activateFileViewerSelecting([URL(filePath: project.fullPath, directoryHint: .isDirectory)])
     }
 
     // MARK: Templates

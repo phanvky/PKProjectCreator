@@ -4,6 +4,8 @@ struct NewProjectView: View {
     @Environment(AppState.self) private var app
 
     var body: some View {
+        @Bindable var app = app
+
         HStack(alignment: .top, spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.sectionSpacing) {
@@ -22,12 +24,27 @@ struct NewProjectView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             BottomActionBar(message: app.creationStatus) {
-                Button("Reset") { app.resetDraft() }
-                Button("Create Project") {}
+                if app.creationTask != nil {
+                    ProgressView().controlSize(.small)
+                    Button("Cancel") { app.cancelCreation() }
+                } else {
+                    Button("Reset") { app.resetDraft() }
+                }
+                Button("Create Project") { app.createProject() }
                     .buttonStyle(.borderedProminent)
-                    .disabled(true)
-                    .help("Project creation will be enabled in a later phase.")
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(app.creationBlocker != nil || app.creationTask != nil)
             }
+        }
+        .sheet(item: $app.createdProject) { project in
+            ProjectCreatedDialog(
+                projectName: project.name,
+                directoryCount: project.directoryCount,
+                premiereFilename: nil,
+                location: project.fullPath,
+                onRevealInFinder: { app.revealInFinder(project) },
+                onDone: { app.createdProject = nil }
+            )
         }
         .navigationTitle("New Project")
         .navigationSubtitle(subtitle)
@@ -156,10 +173,10 @@ private struct GeneratedNameSection: View {
     }
 
     private var nameText: Text {
-        let date = Text(ProjectNaming.datePrefix(for: app.draft.date))
+        let date = Text(ProjectNameGenerator.datePrefix(for: app.draft.date))
         let type = Text(app.draft.type.rawValue).foregroundStyle(Color.accentColor)
         let name = app.draft.projectName.isBlank
-            ? Text(ProjectNaming.namePlaceholder).italic().foregroundStyle(.secondary)
+            ? Text(ProjectNameGenerator.namePlaceholder).italic().foregroundStyle(.secondary)
             : Text(app.draft.projectName)
         return Text("\(date) \(type) \(name)")
     }

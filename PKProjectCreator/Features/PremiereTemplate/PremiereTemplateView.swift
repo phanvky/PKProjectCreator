@@ -114,7 +114,7 @@ struct PremiereTemplateView: View {
             SectionHeader("Output Filename")
             FormCard {
                 HStack(spacing: 8) {
-                    TokenChip(text: "Date · \(ProjectNaming.datePattern)")
+                    TokenChip(text: "Date · \(ProjectNameGenerator.datePattern)")
                     TokenChip(text: "Project Type")
                     TokenChip(text: "Project Name")
                     Text(".prproj")

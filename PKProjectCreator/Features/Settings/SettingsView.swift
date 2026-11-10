@@ -152,13 +152,13 @@ struct SettingsView: View {
     // MARK: Naming
 
     private var naming: some View {
-        let sample = ProjectNaming.generatedName(date: .now, type: app.settings.defaultProjectType, projectName: "Develon")
+        let sample = ProjectNameGenerator.generatedName(date: .now, type: app.settings.defaultProjectType, projectName: "Develon")
 
         return VStack(alignment: .leading, spacing: 8) {
             SectionHeader("Naming")
             FormCard {
                 FormRow("Date format") {
-                    Text(ProjectNaming.datePattern).font(Theme.mono)
+                    Text(ProjectNameGenerator.datePattern).font(Theme.mono)
                 }
                 FormRow("Project type placement") {
                     Text("After the date").foregroundStyle(.secondary)

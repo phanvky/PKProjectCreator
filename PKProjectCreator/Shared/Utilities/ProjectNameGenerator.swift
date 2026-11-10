@@ -17,7 +17,7 @@ nonisolated enum ProjectNameIssue: Equatable {
 }
 
 /// The PHANKY FILM naming rule: `yyyy - MM - dd` + Project Type + Project Name.
-nonisolated enum ProjectNaming {
+nonisolated enum ProjectNameGenerator {
     static let datePattern = "yyyy - MM - dd"
     static let namePlaceholder = "[Project Name]"
 
@@ -45,11 +45,8 @@ nonisolated enum ProjectNaming {
         generatedName(date: date, type: type, projectName: projectName.isBlank ? namePlaceholder : projectName)
     }
 
-    static func destinationFolder(base: String, date: Date, useYearFolder: Bool) -> String {
-        useYearFolder ? "\(base)/\(year(for: date))" : base
-    }
-
-    /// macOS filename rules for the user part, plus the length limit of the final `.prproj` name.
+    /// macOS path-component rules for the user part (no "/", ":", NUL or other control characters), plus the
+    /// length limit of the final `.prproj` name. Checked before any filesystem work.
     static func issue(forProjectName name: String, generatedName: String) -> ProjectNameIssue? {
         if name.isBlank { return .empty }
         if name.contains(where: { $0 == "/" || $0 == ":" }) { return .forbiddenCharacter }

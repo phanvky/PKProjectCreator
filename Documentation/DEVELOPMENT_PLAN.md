@@ -30,5 +30,8 @@ DaVinci Resolve template (copy `.drp`, set its project name; Working Folders lef
 ## Phase 07 — End-to-end testing, hardening & optimization ✅
 Full QA pass: Debug and Release builds without warnings, 86 tests, drive matrix A–K, scripted end-to-end run on a virtual drive, filesystem-safety review, performance check. Fixes: template folder names re-validated (no writing outside the project), non-recursive empty-folder removal, central plain-language file errors, folders-only confirmation when the Premiere template isn't ready, success dialog lists the Resolve file. See `QA_REPORT.md` and `MANUAL_TEST_CHECKLIST.md`.
 
-## Phase 08 — Polish & distribution (recommended next)
-- Reels — Lite hierarchy (once supplied; it can already be entered by hand in Folder Templates), keyboard shortcuts, accessibility pass, app icon, signing/notarization, DMG.
+## Phase 08 — Release build, signing & DMG ✅
+Version 1.0.0 (1), copyright and app category set; design-only `DriveNotConnectedDialog` removed. Release build re-signed ad-hoc with Hardened Runtime and only the sandbox + user-selected-files entitlements (no `get-task-allow`). No signing certificate exists on the build Mac, so no Developer ID and no notarization. `PKProjectCreator.dmg` (UDZO) in `PKProjectCreator-Release/1.0.0/` next to the repo, installed and verified from `/Applications`. See `RELEASE_NOTES.md`, `INSTALLATION.md`, `BUILD_INFO.md`.
+
+## Later (not scheduled)
+- Reels — Lite hierarchy (once supplied; it can already be entered by hand in Folder Templates), keyboard shortcuts, accessibility pass, app icon (needs approved artwork), Developer ID signing and notarization (needs an Apple Developer account), saving the Copy Into choice, Resolve status in Recent Projects.

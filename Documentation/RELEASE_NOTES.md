@@ -1,3 +1,12 @@
+# PKProjectCreator 1.0.2 (build 3) — 2026-11-15
+
+- **Edit folders per project:** Folder Preview on New Project has the folder toolbar (add, subfolder, move, rename, delete, drag onto another folder). Changes apply to that project only; Reset to Template undoes them. Switching to another template asks before discarding them.
+- **Your own project types:** Settings › General › Project Types (add, rename, delete, reorder), also reachable from the ✏️ next to Project Type. Renaming updates folder templates and the default type; projects already created keep their names.
+- **Copy Into is saved** between launches, follows a folder that is renamed or moved, and finds renumbered folders (e.g. `04_Project` → `07_Project`), so the Premiere and Resolve files always land in the project folder.
+- Built-in Standard Production (used on a fresh install) is the 2026-11-15 structure: `01_Footages` (Cam 01, Cam 02, Flycam, FPV, Cam 360, Action Cam), `02_Voice`, `03_Music`, `04_SFX`, `05_Graphic`, `06_AI` (Images, Video), `07_Project` (Premiere Pro, DaVinci Resolve, After Effects), `08_Export`. Saved templates are not changed.
+- Suggested Premiere master on a fresh install: `Project Teamplate 27.0.prproj`.
+- Known: Update Project doesn't yet match renumbered folders.
+
 # PKProjectCreator 1.0.1 (build 2) — 2026-11-10
 
 - App icon: the approved PHANKY "Creator Project" artwork, fitted to the macOS icon grid (824 px tile in 1024, transparent rounded corners) in all ten sizes. The supplied square artwork had a solid black background, which would have shown as black corners.
@@ -22,7 +31,7 @@ The master templates are only read. Deleting happens only for the app's own temp
 
 ## Known limitations
 - Not notarized and ad-hoc signed: on another Mac, Gatekeeper requires **Open Anyway** once (see INSTALLATION.md).
-- The Copy Into folder choice (Premiere and Resolve) isn't saved between launches.
+- The Copy Into folder choice (Premiere and Resolve) isn't saved between launches (fixed in 1.0.2).
 - Recent Projects shows Premiere status but not the Resolve file.
 - A duplicate project name is reported when Create Project is clicked, not while typing.
 - Resolve name setting relies on Resolve's undocumented `.drp` format (checked with Resolve Studio 21); if it changes, creation stops safely with an error.

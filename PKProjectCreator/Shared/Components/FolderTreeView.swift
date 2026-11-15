@@ -67,7 +67,7 @@ struct FolderTreeView: View {
                     onToggle: { toggle(row.id) },
                     onSelect: selection.map { binding in { binding.wrappedValue = row.id } }
                 )
-                .modifier(FolderDragAndDrop(id: row.id, onMove: row.item.kind == .folder ? onMove : nil))
+                .modifier(FolderDragAndDrop(id: row.id, onMove: row.item.kind == .file ? nil : onMove))
             }
         }
     }

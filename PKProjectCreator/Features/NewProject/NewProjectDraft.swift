@@ -5,7 +5,11 @@ struct NewProjectDraft {
     var date = Date()
     var type: ProjectType
     var projectName = ""
-    var templateID: FolderTemplate.ID?
+    var templateID: FolderTemplate.ID? {
+        didSet { if templateID != oldValue { folders = nil } }
+    }
+    /// This project's own folder changes; nil while it uses the template as it is. Never saved to the template.
+    var folders: [FolderNode]?
     /// Turning this off is the explicit "folders only" choice.
     var createPremiere: Bool
     var createResolve = false
@@ -16,16 +20,41 @@ extension AppState {
         templates.first { $0.id == draft.templateID } ?? templates.first
     }
 
+    /// The folders this project gets: the template's, with this project's own changes.
+    var projectFolders: [FolderNode] { draft.folders ?? selectedTemplate?.nodes ?? [] }
+
+    /// Applies a folder change to this project only; nothing is changed when `body` throws.
+    func editProjectFolders(_ body: (inout [FolderNode]) throws -> Void) throws {
+        var folders = projectFolders
+        try body(&folders)
+        draft.folders = folders
+    }
+
+    /// Where a project file goes: the Copy Into folder, followed when it was renumbered, renamed or moved for this
+    /// project. nil when the project has no such folder.
+    func copyFolder(_ wanted: [String]) -> [String]? {
+        let folders = projectFolders
+        if folders.allPaths.contains(wanted) { return wanted }
+        if let nodes = selectedTemplate?.nodes, let path = nodes.matchingPath(wanted), let id = nodes.node(atPath: path)?.id,
+           let followed = folders.path(of: id) {
+            return followed
+        }
+        return folders.matchingPath(wanted)
+    }
+
+    var premiereFolder: [String] { copyFolder(premiere.destinationFolder) ?? premiere.destinationFolder }
+    var resolveFolder: [String] { copyFolder(premiere.resolveFolder) ?? premiere.resolveFolder }
+
     /// The one description of what Create Project will do. The preview and the creation both read it.
     var creationPlan: ProjectCreationPlan {
         let template = selectedTemplate
         return ProjectCreationPlan(
             date: draft.date, type: draft.type, projectName: draft.projectName,
-            templateID: template?.id, templateName: template?.name ?? "", folders: template?.nodes ?? [],
+            templateID: template?.id, templateName: template?.name ?? "", folders: projectFolders,
             destinationFolderURL: destination.url ?? settings.defaultDestinationURL,
             useYearFolder: settings.useYearFolderFromProjectDate,
-            createsPremiereProject: draft.createPremiere, premiereFolder: premiere.destinationFolder,
-            createsResolveProject: draft.createResolve, resolveFolder: premiere.resolveFolder
+            createsPremiereProject: draft.createPremiere, premiereFolder: premiereFolder,
+            createsResolveProject: draft.createResolve, resolveFolder: resolveFolder
         )
     }
 
@@ -45,11 +74,11 @@ extension AppState {
     var projectPath: String { "\(destinationFolder)/\(displayName)/" }
 
     var premiereOutputPath: String {
-        (premiere.destinationFolder + ["\(displayName).prproj"]).joined(separator: "/")
+        (premiereFolder + ["\(displayName).prproj"]).joined(separator: "/")
     }
 
     var resolveOutputPath: String {
-        (premiere.resolveFolder + ["\(displayName).\(PremiereTemplateService.resolveExtension)"]).joined(separator: "/")
+        (resolveFolder + ["\(displayName).\(PremiereTemplateService.resolveExtension)"]).joined(separator: "/")
     }
 
     /// Why Create Project is unavailable right now, or nil when it can run.
@@ -57,8 +86,11 @@ extension AppState {
         if let issue = nameIssue {
             return StatusMessage(text: issue.message, kind: issue == .empty ? .neutral : .danger)
         }
-        if let template = selectedTemplate, !template.isConfigured {
+        if let template = selectedTemplate, !template.isConfigured, draft.folders == nil {
             return StatusMessage(text: "“\(template.name)” needs configuration: add its folders in Folder Templates.", kind: .warning)
+        }
+        if projectFolders.isEmpty {
+            return StatusMessage(text: "Add at least one folder in Folder Preview, or click Reset to Template.", kind: .warning)
         }
         if let problem = destination.problem(item: "destination folder") {
             return StatusMessage(text: problem, kind: .warning)
@@ -67,10 +99,9 @@ extension AppState {
             if let problem = premiereTemplate.problem(item: "Premiere template") {
                 return StatusMessage(text: "\(problem) Or turn off “Create Premiere project from template”.", kind: .warning)
             }
-            let folder = premiere.destinationFolder
-            if let template = selectedTemplate, !template.nodes.allPaths.contains(folder) {
+            if copyFolder(premiere.destinationFolder) == nil {
                 return StatusMessage(
-                    text: "“\(template.name)” has no “\(folder.joined(separator: "/"))” folder for the Premiere project. Choose another folder in Premiere Template › Copy Into.",
+                    text: "This project has no “\(premiere.destinationFolder.joined(separator: "/"))” folder for the Premiere project. Add it in Folder Preview, or choose another folder in Premiere Template › Copy Into.",
                     kind: .warning
                 )
             }
@@ -79,9 +110,9 @@ extension AppState {
             if let problem = resolveTemplate.problem(item: "DaVinci Resolve template") {
                 return StatusMessage(text: "\(problem) Or turn off “Create DaVinci Resolve project from template”.", kind: .warning)
             }
-            if let template = selectedTemplate, !template.nodes.allPaths.contains(premiere.resolveFolder) {
+            if copyFolder(premiere.resolveFolder) == nil {
                 return StatusMessage(
-                    text: "“\(template.name)” has no “\(premiere.resolveFolder.joined(separator: "/"))” folder for the DaVinci Resolve project. Choose another folder in Resolve Template › Copy Into, or turn off “Create DaVinci Resolve project from template”.",
+                    text: "This project has no “\(premiere.resolveFolder.joined(separator: "/"))” folder for the DaVinci Resolve project. Add it in Folder Preview, choose another folder in Resolve Template › Copy Into, or turn off “Create DaVinci Resolve project from template”.",
                     kind: .warning
                 )
             }

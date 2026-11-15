@@ -20,7 +20,7 @@ Event, PSC, PSH, Tour, Golf Tournament, TVC, Reels.
 
 ## Locations
 - Suggested project destination: `/Volumes/KIOXIA/PROJECT VIDEO/EVENT`. With "Use year folder from project date" on, the year of the project date is appended at the time of use: `…/EVENT/2026`. The `EVENT` folder does not change with project type.
-- Suggested Premiere master: `/Volumes/WORK/TÀI NGUYÊN /PREMIERE PRO/PROJECT MODEL/Project/Year - Month - Day - Name 2026.prproj` (note the space after `NGUYÊN`).
+- Suggested Premiere master: `/Volumes/WORK/TÀI NGUYÊN /PREMIERE PRO/PROJECT MODEL/Project/Project Teamplate 27.0.prproj` (note the space after `NGUYÊN`).
 - Both are only **suggested locations** until the user chooses them in a macOS file dialog. Choosing is what authorizes them; the app then shows **Authorized location**. A path that merely exists is never treated as usable.
 - The template must be a `.prproj` file. It is authorized read-only and is never modified. It can be replaced or cleared.
 - The destination and the template are tracked independently, each with one of these states: connected and authorized · connected, permission needed · disconnected · permission expired (stale bookmark that couldn't be renewed) · not found · not selected.

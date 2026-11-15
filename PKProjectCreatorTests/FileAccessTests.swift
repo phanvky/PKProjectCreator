@@ -224,7 +224,7 @@ struct SettingsStoreTests {
     @Test func defaultsAreSafe() {
         let settings = AppSettings()
         #expect(settings.defaultDestinationURL.plainPath == "/Volumes/KIOXIA/PROJECT VIDEO/EVENT")
-        #expect(settings.premiereTemplateURL?.plainPath == "/Volumes/WORK/TÀI NGUYÊN /PREMIERE PRO/PROJECT MODEL/Project/Year - Month - Day - Name 2026.prproj")
+        #expect(settings.premiereTemplateURL?.plainPath == "/Volumes/WORK/TÀI NGUYÊN /PREMIERE PRO/PROJECT MODEL/Project/Project Teamplate 27.0.prproj")
         #expect(settings.destinationBookmarkData == nil)
         #expect(settings.premiereTemplateBookmarkData == nil)
         #expect(settings.useYearFolderFromProjectDate)

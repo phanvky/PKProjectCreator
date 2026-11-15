@@ -44,14 +44,14 @@ struct ProjectNameGeneratorTests {
 struct FolderTemplateTests {
     @Test func standardProductionMatchesApprovedStructure() {
         let template = FolderTemplate.standardProduction()
-        #expect(template.nodes.map(\.name) == ["01_Footages", "02_Music", "03_SFX", "04_Project", "05_AI", "06_Graphic", "07_Export"])
+        #expect(template.nodes.map(\.name) == ["01_Footages", "02_Voice", "03_Music", "04_SFX", "05_Graphic", "06_AI", "07_Project", "08_Export"])
         #expect(template.nodes[0].children.map(\.name) == ["Cam 01", "Cam 02", "Flycam", "FPV", "Cam 360", "Action Cam"])
-        #expect(template.nodes[3].children.map(\.name) == ["Premiere Pro", "DaVinci Resolve", "After Effects"])
-        #expect(template.nodes[4].children.map(\.name) == ["Images", "Video"])
-        #expect(template.folderCount == 18)
-        #expect(template.folderCount + 1 == 19)
+        #expect(template.nodes[6].children.map(\.name) == ["Premiere Pro", "DaVinci Resolve", "After Effects"])
+        #expect(template.nodes[5].children.map(\.name) == ["Images", "Video"])
+        #expect(template.folderCount == 19)
+        #expect(template.folderCount + 1 == 20)
         #expect(template.isConfigured)
-        #expect(template.defaultTypesList == [.event, .psc, .psh, .tour, .golfTournament, .tvc])
+        #expect(template.defaultTypesList(in: ProjectType.builtIn) == [.event, .psc, .psh, .tour, .golfTournament, .tvc])
     }
 
     @Test func reelsLiteNeedsConfigurationAndIsNotADefault() {
@@ -63,23 +63,23 @@ struct FolderTemplateTests {
 
     @Test func codableRoundtripKeepsIDsAndNesting() throws {
         var template = FolderTemplate.standardProduction()
-        let deep = template.addFolder(inParent: template.nodes[3].children[0].id)
+        let deep = template.addFolder(inParent: template.nodes[6].children[0].id)
         template.addFolder(inParent: deep.id)
         let decoded = try JSONDecoder().decode(FolderTemplate.self, from: JSONEncoder().encode(template))
         #expect(decoded == template)
-        #expect(decoded.folderCount == 20)
+        #expect(decoded.folderCount == 21)
     }
 
     @Test func nestedAddRenameDeleteAndReorder() throws {
         var template = FolderTemplate.standardProduction()
-        let project = template.nodes[3]
+        let project = template.nodes[6]
         let premiere = project.children[0]
 
         let added = template.addFolder(inParent: premiere.id)
         let second = template.addFolder(inParent: premiere.id)
         #expect(added.name == "New Folder")
         #expect(second.name == "New Folder 2")
-        #expect(template.folderCount == 20)
+        #expect(template.folderCount == 21)
 
         try template.renameFolder(project.id, to: "04_Dự án (Edit) & Tom's - v2")
         #expect(template.nodes.node(withID: project.id)?.children.count == 3)
@@ -91,7 +91,7 @@ struct FolderTemplateTests {
         #expect(template.nodes.node(withID: project.id)?.children.map(\.name) == ["DaVinci Resolve", "Premiere Pro", "After Effects"])
 
         template.nodes.remove(project.id)
-        #expect(template.folderCount == 14)
+        #expect(template.folderCount == 15)
         #expect(template.nodes.node(withID: added.id) == nil)
     }
 
@@ -116,22 +116,22 @@ struct FolderTemplateTests {
         #expect(throws: FolderEditIssue.duplicateName) { try template.renameFolder(cam02.id, to: "cam 01") }
         try template.renameFolder(cam02.id, to: "Cam 02")
         // The same name is fine under a different parent.
-        try template.renameFolder(template.nodes[4].children[0].id, to: "Cam 01")
-        #expect(template.nodes[4].children[0].name == "Cam 01")
+        try template.renameFolder(template.nodes[5].children[0].id, to: "Cam 01")
+        #expect(template.nodes[5].children[0].name == "Cam 01")
     }
 
     @Test func movingFolders() throws {
         var nodes = FolderTemplate.standardProduction().nodes
-        let footages = nodes[0], project = nodes[3], ai = nodes[4]
+        let footages = nodes[0], project = nodes[6], ai = nodes[5]
         let images = ai.children[0]
 
         #expect(throws: FolderEditIssue.moveIntoItself) { try nodes.move(ai.id, intoParent: ai.id) }
         #expect(throws: FolderEditIssue.moveIntoDescendant) { try nodes.move(ai.id, intoParent: images.id) }
-        #expect(nodes.totalCount == 18)
+        #expect(nodes.totalCount == 19)
 
         try nodes.move(ai.id, intoParent: project.children[0].id)
-        #expect(nodes.allPaths.contains(["04_Project", "Premiere Pro", "05_AI", "Images"]))
-        #expect(nodes.totalCount == 18)
+        #expect(nodes.allPaths.contains(["07_Project", "Premiere Pro", "06_AI", "Images"]))
+        #expect(nodes.totalCount == 19)
 
         try nodes.move(images.id, intoParent: nil)
         #expect(nodes.last?.id == images.id)

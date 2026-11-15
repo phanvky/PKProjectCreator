@@ -5,6 +5,12 @@ struct RecentProjectsView: View {
     @Environment(AppState.self) private var app
     @State private var searchText = ""
     @State private var typeFilter: ProjectType?
+
+    /// The user's types, plus types only old projects still have (renamed or removed since).
+    private var typeOptions: [ProjectType] {
+        let old = app.recentProjects.map(\.projectType).filter { !app.settings.projectTypes.contains($0) }
+        return app.settings.projectTypes + Array(Set(old)).sorted { $0.rawValue < $1.rawValue }
+    }
     @State private var selection: RecentProject.ID?
     @State private var sortOrder = [KeyPathComparator(\RecentProject.projectDate, order: .reverse)]
 
@@ -90,7 +96,7 @@ struct RecentProjectsView: View {
                 Picker("Project Type", selection: $typeFilter) {
                     Text("All Types").tag(ProjectType?.none)
                     Divider()
-                    ForEach(ProjectType.allCases) { Text($0.rawValue).tag(Optional($0)) }
+                    ForEach(typeOptions) { Text($0.rawValue).tag(Optional($0)) }
                 }
                 .pickerStyle(.menu)
             }

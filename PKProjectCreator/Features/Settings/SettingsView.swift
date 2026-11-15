@@ -53,7 +53,7 @@ struct SettingsView: View {
             FormCard {
                 FormRow("Default project type") {
                     Picker("Default project type", selection: $app.settings.defaultProjectType) {
-                        ForEach(ProjectType.allCases) { Text($0.rawValue).tag($0) }
+                        ForEach(app.settings.projectTypes) { Text($0.rawValue).tag($0) }
                     }
                     .labelsHidden()
                     .buttonSizing(.flexible)
@@ -73,6 +73,7 @@ struct SettingsView: View {
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 6)
         }
+        ProjectTypesSection()
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader("After Creating a Project")
             FormCard {

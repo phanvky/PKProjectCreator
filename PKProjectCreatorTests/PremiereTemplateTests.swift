@@ -9,7 +9,7 @@ struct PremiereTemplateTests {
 
     private let files = FileManager.default
     private let fixtureBytes = Data("<?xml version=\"1.0\"?><PremiereData Version=\"3\">fixture · Lễ hội</PremiereData>".utf8)
-    private let outputPath = "2026/2026 - 11 - 12 Event Develon/04_Project/Premiere Pro/2026 - 11 - 12 Event Develon.prproj"
+    private let outputPath = "2026/2026 - 11 - 12 Event Develon/07_Project/Premiere Pro/2026 - 11 - 12 Event Develon.prproj"
 
     private func makeFolder(_ label: String) throws -> URL {
         let url = files.temporaryDirectory.appending(path: "PK\(label)-\(UUID().uuidString)", directoryHint: .isDirectory)
@@ -40,7 +40,7 @@ struct PremiereTemplateTests {
             date: date, type: .event, projectName: "Develon",
             templateID: template.id, templateName: template.name, folders: folders ?? template.nodes,
             destinationFolderURL: destination, useYearFolder: true,
-            createsPremiereProject: true, premiereFolder: ["04_Project", "Premiere Pro"]
+            createsPremiereProject: true, premiereFolder: ["07_Project", "Premiere Pro"]
         )
     }
 
@@ -68,11 +68,11 @@ struct PremiereTemplateTests {
         #expect(try files.attributesOfItem(atPath: output.plainPath)[.size] as? Int == fixtureBytes.count)
         let root = destination.appending(path: "2026/2026 - 11 - 12 Event Develon")
         let entries = files.enumerator(atPath: root.plainPath)?.compactMap { $0 as? String } ?? []
-        #expect(entries.count == 19)
-        #expect(entries.filter { $0.hasSuffix(".prproj") } == ["04_Project/Premiere Pro/2026 - 11 - 12 Event Develon.prproj"])
+        #expect(entries.count == 20)
+        #expect(entries.filter { $0.hasSuffix(".prproj") } == ["07_Project/Premiere Pro/2026 - 11 - 12 Event Develon.prproj"])
         #expect(try files.contentsOfDirectory(atPath: destination.appending(path: "2026").plainPath) == ["2026 - 11 - 12 Event Develon"])
         #expect(project.hasPremiereProject)
-        #expect(project.premiereProjectRelativePath == "04_Project/Premiere Pro/2026 - 11 - 12 Event Develon.prproj")
+        #expect(project.premiereProjectRelativePath == "07_Project/Premiere Pro/2026 - 11 - 12 Event Develon.prproj")
         // The master was only read: same bytes, size, date, permissions, and nothing new beside it.
         #expect(try snapshot(master) == before)
     }
@@ -110,8 +110,8 @@ struct PremiereTemplateTests {
             date: base.date, type: base.type, projectName: base.projectName,
             templateID: base.templateID, templateName: base.templateName, folders: base.folders,
             destinationFolderURL: destination, useYearFolder: true,
-            createsPremiereProject: true, premiereFolder: ["04_Project", "Premiere Pro"],
-            createsResolveProject: true, resolveFolder: ["04_Project", "DaVinci Resolve"]
+            createsPremiereProject: true, premiereFolder: ["07_Project", "Premiere Pro"],
+            createsResolveProject: true, resolveFolder: ["07_Project", "DaVinci Resolve"]
         )
     }
 
@@ -154,17 +154,17 @@ struct PremiereTemplateTests {
         let before = try snapshot(resolveMaster)
 
         let plan = try resolvePlan(in: destination)
-        #expect(plan.resolveOutputRelativePath == "04_Project/DaVinci Resolve/2026 - 11 - 12 Event Develon.drp")
+        #expect(plan.resolveOutputRelativePath == "07_Project/DaVinci Resolve/2026 - 11 - 12 Event Develon.drp")
         _ = try await ProjectCreationService().create(plan, in: destination, premiereTemplate: master, resolveTemplate: resolveMaster)
 
         let root = destination.appending(path: "2026/2026 - 11 - 12 Event Develon")
         // The copy carries the generated name inside, so Resolve shows it on import; everything else is unchanged.
-        let copy = root.appending(path: "04_Project/DaVinci Resolve/2026 - 11 - 12 Event Develon.drp")
+        let copy = root.appending(path: "07_Project/DaVinci Resolve/2026 - 11 - 12 Event Develon.drp")
         let xml = try entry("project.xml", of: copy)
         #expect(xml.contains("<ProjectName>2026 - 11 - 12 Event Develon</ProjectName>"))
         #expect(xml.contains("<Name>Project Model.Cfg</Name>"))
         #expect(try entry("MediaPool/Master/MpFolder.xml", of: copy) == "<MpFolder>Lễ hội</MpFolder>")
-        #expect(try Data(contentsOf: root.appending(path: "04_Project/Premiere Pro/2026 - 11 - 12 Event Develon.prproj")) == fixtureBytes)
+        #expect(try Data(contentsOf: root.appending(path: "07_Project/Premiere Pro/2026 - 11 - 12 Event Develon.prproj")) == fixtureBytes)
         #expect(try snapshot(resolveMaster) == before)
     }
 
@@ -183,7 +183,7 @@ struct PremiereTemplateTests {
             return node
         }
         let drp = try makeDrp(in: work)
-        #expect(await error { _ = try await service.create(try resolvePlan(in: destination, folders: noResolveFolder), in: destination, premiereTemplate: master, resolveTemplate: drp) } == .resolveFolderMissing("04_Project/DaVinci Resolve"))
+        #expect(await error { _ = try await service.create(try resolvePlan(in: destination, folders: noResolveFolder), in: destination, premiereTemplate: master, resolveTemplate: drp) } == .resolveFolderMissing("07_Project/DaVinci Resolve"))
 
         #expect(try files.contentsOfDirectory(atPath: destination.plainPath).isEmpty)
     }
@@ -238,10 +238,10 @@ struct PremiereTemplateTests {
         defer { try? files.setAttributes([.posixPermissions: 0o644], ofItemAtPath: locked.plainPath) }
         #expect(await error { _ = try await service.create(try plan(in: destination), in: destination, premiereTemplate: locked) } == .premiere(.notReadable("Locked.prproj")))
 
-        // The folder template has no 04_Project/Premiere Pro to copy into.
+        // The folder template has no 07_Project/Premiere Pro to copy into.
         let master = try makeMaster(in: work)
-        let noProjectFolder = FolderTemplate.standardProduction().nodes.filter { $0.name != "04_Project" }
-        #expect(await error { _ = try await service.create(try plan(in: destination, folders: noProjectFolder), in: destination, premiereTemplate: master) } == .premiereFolderMissing("04_Project/Premiere Pro"))
+        let noProjectFolder = FolderTemplate.standardProduction().nodes.filter { $0.name != "07_Project" }
+        #expect(await error { _ = try await service.create(try plan(in: destination, folders: noProjectFolder), in: destination, premiereTemplate: master) } == .premiereFolderMissing("07_Project/Premiere Pro"))
 
         #expect(try files.contentsOfDirectory(atPath: destination.plainPath).isEmpty)
     }

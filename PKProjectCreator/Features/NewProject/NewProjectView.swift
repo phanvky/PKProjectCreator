@@ -63,7 +63,8 @@ struct NewProjectView: View {
 
     private var subtitle: String {
         guard let template = app.selectedTemplate else { return "" }
-        return "\(template.name) · \(template.folderCount) folders"
+        let edited = app.draft.folders == nil ? "" : " (edited)"
+        return "\(template.name)\(edited) · \(app.projectFolders.totalCount) folders"
     }
 }
 
@@ -72,6 +73,8 @@ struct NewProjectView: View {
 private struct ProjectInfoSection: View {
     @Environment(AppState.self) private var app
     @State private var showsCalendar = false
+    /// A type or template choice waiting for "discard this project's folder changes?".
+    @State private var pendingChoice: (type: ProjectType, templateID: FolderTemplate.ID?)?
 
     var body: some View {
         @Bindable var app = app
@@ -101,12 +104,21 @@ private struct ProjectInfoSection: View {
                     }
                 }
                 FormRow("Project Type") {
-                    Picker("Project Type", selection: $app.draft.type) {
-                        ForEach(ProjectType.allCases) { Text($0.rawValue).tag($0) }
+                    HStack(spacing: 6) {
+                        Button("Edit Project Types", systemImage: "pencil") { app.screen = .settings }
+                            .labelStyle(.iconOnly)
+                            .buttonStyle(.borderless)
+                            .help("Add, rename or delete project types in Settings")
+                        Picker("Project Type", selection: Binding(
+                            get: { app.draft.type },
+                            set: { choose(type: $0, templateID: app.defaultTemplate(for: $0)?.id) }
+                        )) {
+                            ForEach(app.settings.projectTypes) { Text($0.rawValue).tag($0) }
+                        }
+                        .labelsHidden()
+                        .buttonSizing(.flexible)
+                        .frame(width: 240)
                     }
-                    .labelsHidden()
-                    .buttonSizing(.flexible)
-                    .frame(width: 240)
                 }
                 FormRow("Project Name") {
                     VStack(alignment: .leading, spacing: 6) {
@@ -125,13 +137,16 @@ private struct ProjectInfoSection: View {
                 }
                 FormRow("Folder Template") {
                     HStack(spacing: 12) {
-                        if let template = app.selectedTemplate {
-                            Text("\(template.folderCount) folders")
+                        if app.selectedTemplate != nil {
+                            Text("\(app.projectFolders.totalCount) folders\(app.draft.folders == nil ? "" : " · edited")")
                                 .font(.callout)
                                 .foregroundStyle(.secondary)
                                 .fixedSize()
                         }
-                        Picker("Folder Template", selection: $app.draft.templateID) {
+                        Picker("Folder Template", selection: Binding(
+                            get: { app.draft.templateID },
+                            set: { choose(type: app.draft.type, templateID: $0) }
+                        )) {
                             ForEach(app.templates) { Text($0.name).tag(Optional($0.id)) }
                         }
                         .labelsHidden()
@@ -141,9 +156,30 @@ private struct ProjectInfoSection: View {
                 }
             }
         }
-        .onChange(of: app.draft.type) { _, newType in
-            app.draft.templateID = app.defaultTemplate(for: newType)?.id
+        .confirmationDialog(
+            "Discard this project’s folder changes?",
+            isPresented: Binding(get: { pendingChoice != nil }, set: { if !$0 { pendingChoice = nil } })
+        ) {
+            Button("Discard Changes", role: .destructive) {
+                if let choice = pendingChoice { apply(type: choice.type, templateID: choice.templateID) }
+            }
+        } message: {
+            Text("The folder template changes, so the folders go back to that template’s structure.")
         }
+    }
+
+    /// A choice that switches the folder template would drop this project's folder edits, so it asks first.
+    private func choose(type: ProjectType, templateID: FolderTemplate.ID?) {
+        if app.draft.folders != nil, templateID != app.draft.templateID {
+            pendingChoice = (type, templateID)
+        } else {
+            apply(type: type, templateID: templateID)
+        }
+    }
+
+    private func apply(type: ProjectType, templateID: FolderTemplate.ID?) {
+        app.draft.type = type
+        app.draft.templateID = templateID
     }
 }
 

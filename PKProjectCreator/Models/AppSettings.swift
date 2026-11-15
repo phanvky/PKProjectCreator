@@ -6,7 +6,7 @@ struct AppSettings: Codable, Equatable {
     /// Shown before the user has authorized anything. These are suggestions, not permissions.
     static let suggestedDestinationURL = URL(filePath: "/Volumes/KIOXIA/PROJECT VIDEO/EVENT", directoryHint: .isDirectory)
     static let suggestedPremiereTemplateURL = URL(
-        filePath: "/Volumes/WORK/TÀI NGUYÊN /PREMIERE PRO/PROJECT MODEL/Project/Year - Month - Day - Name 2026.prproj",
+        filePath: "/Volumes/WORK/TÀI NGUYÊN /PREMIERE PRO/PROJECT MODEL/Project/Project Teamplate 27.0.prproj",
         directoryHint: .notDirectory
     )
     static let suggestedResolveTemplateURL = URL(
@@ -15,6 +15,9 @@ struct AppSettings: Codable, Equatable {
     )
     static let recentLimitOptions = [10, 20, 50, 100]
 
+    /// The types offered on New Project, in display order. Never empty.
+    var projectTypes = ProjectType.builtIn
+    /// Always one of `projectTypes`.
     var defaultProjectType: ProjectType = .event
 
     /// The suggested folder until the user chooses one; afterwards the last place the bookmark resolved to.
@@ -30,6 +33,8 @@ struct AppSettings: Codable, Equatable {
     var premiereTemplateBookmarkData: Data?
     var premiereTemplateVolume: VolumeIdentity?
     var createPremiereProjectByDefault = true
+    /// The folders inside a new project that receive the Premiere and Resolve copies.
+    var copyFolders = PremiereTemplateConfig()
 
     /// The DaVinci Resolve master project (.drp); nil after the user clears it.
     var resolveTemplateURL: URL? = suggestedResolveTemplateURL
@@ -50,7 +55,11 @@ struct AppSettings: Codable, Equatable {
         func read<T: Decodable>(_ key: CodingKeys, _ fallback: T) -> T {
             (try? values.decodeIfPresent(T.self, forKey: key)) ?? fallback
         }
-        defaultProjectType = read(.defaultProjectType, defaultProjectType)
+        let savedTypes = read(.projectTypes, projectTypes)
+        projectTypes = savedTypes.isEmpty ? ProjectType.builtIn : savedTypes
+        let savedDefault = read(.defaultProjectType, defaultProjectType)
+        defaultProjectType = projectTypes.contains(savedDefault) ? savedDefault : projectTypes[0]
+        copyFolders = read(.copyFolders, copyFolders)
         defaultDestinationURL = read(.defaultDestinationURL, defaultDestinationURL)
         destinationBookmarkData = try? values.decodeIfPresent(Data.self, forKey: .destinationBookmarkData)
         destinationVolume = try? values.decodeIfPresent(VolumeIdentity.self, forKey: .destinationVolume)

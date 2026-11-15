@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Right column of New Project: the full tree that will be created, root included.
+/// Right column of New Project: the full tree that will be created, root included. Its folders can be changed
+/// for this project only; the template stays as it is.
 struct FolderPreviewPanel: View {
     @Environment(AppState.self) private var app
     @State private var collapsed: Set<UUID> = []
@@ -10,7 +11,6 @@ struct FolderPreviewPanel: View {
     private static let resolveFileID = UUID()
 
     var body: some View {
-        let template = app.selectedTemplate
         let plan = app.creationPlan
         let root = previewRoot(plan)
 
@@ -18,6 +18,11 @@ struct FolderPreviewPanel: View {
             SectionHeader("Folder Preview") {
                 HStack(spacing: 10) {
                     Text(summary(plan))
+                    if app.draft.folders != nil {
+                        Button("Reset to Template", systemImage: "arrow.uturn.backward") { app.draft.folders = nil }
+                            .labelStyle(.iconOnly)
+                            .help("Undo this project’s folder changes and use “\(app.selectedTemplate?.name ?? "")” as it is")
+                    }
                     Button {
                         collapsed = []
                     } label: {
@@ -34,42 +39,41 @@ struct FolderPreviewPanel: View {
                 .buttonStyle(.borderless)
             }
 
-            Group {
-                if let template, template.isConfigured {
-                    ScrollView {
-                        FolderTreeView(items: [root], collapsed: $collapsed)
-                            .padding(10)
-                    }
-                } else {
-                    ContentUnavailableView(
-                        "Needs Configuration",
-                        systemImage: "folder.badge.questionmark",
-                        description: Text("Add this template’s folders in Folder Templates.")
-                    )
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(Theme.wellFill, in: .rect(cornerRadius: Theme.cornerRadius))
-            .overlay(RoundedRectangle(cornerRadius: Theme.cornerRadius).strokeBorder(Theme.cardBorder))
+            FolderStructureEditor(
+                nodes: plan.folders,
+                root: root,
+                apply: { change in try app.editProjectFolders(change) },
+                emptyMessage: "Add this project’s folders with the buttons below, or click Reset to Template.",
+                showsDisclosure: true,
+                collapsed: $collapsed,
+                scrolls: true
+            )
+
+            Text(app.draft.folders == nil
+                ? "Changes here apply to this project only. The template is not changed."
+                : "Edited for this project only. “\(app.selectedTemplate?.name ?? "")” is not changed.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
         }
     }
 
     /// Drawn from the same plan that Create Project executes.
     private func previewRoot(_ plan: ProjectCreationPlan) -> FolderTreeItem {
         var files: [FolderTreeItem.FilePlacement] = []
-        if plan.createsPremiereProject {
+        if let folder = plan.premiereFolder {
             files.append(FolderTreeItem.FilePlacement(
                 id: Self.premiereFileID,
-                folderPath: app.premiere.destinationFolder,
+                folderPath: folder,
                 name: "\(app.displayName).prproj",
                 note: app.premiereTemplate.isReady ? "from template" : "template not ready",
                 isMissing: !app.premiereTemplate.isReady
             ))
         }
-        if plan.createsResolveProject {
+        if let folder = plan.resolveFolder {
             files.append(FolderTreeItem.FilePlacement(
                 id: Self.resolveFileID,
-                folderPath: app.premiere.resolveFolder,
+                folderPath: folder,
                 name: "\(app.displayName).\(PremiereTemplateService.resolveExtension)",
                 note: app.resolveTemplate.isReady ? "from template" : "template not ready",
                 isMissing: !app.resolveTemplate.isReady

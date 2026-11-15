@@ -100,15 +100,16 @@ struct PremiereTemplateView: View {
 
     private var copyIntoSection: some View {
         @Bindable var app = app
-        let current = app.premiere[keyPath: folderPath]
         let paths = app.selectedTemplate?.nodes.allPaths ?? []
+        // A saved folder that was renumbered since (04_Project → 05_Project) shows as the folder it now is.
+        let current = app.selectedTemplate?.nodes.matchingPath(app.premiere[keyPath: folderPath]) ?? app.premiere[keyPath: folderPath]
         let options = paths.contains(current) ? paths : [current] + paths
 
         return VStack(alignment: .leading, spacing: 8) {
             SectionHeader("Copy Into")
             FormCard {
                 FormRow("Folder inside project") {
-                    Picker("Folder inside project", selection: $app.premiere[dynamicMember: folderPath]) {
+                    Picker("Folder inside project", selection: Binding(get: { current }, set: { app.premiere[keyPath: folderPath] = $0 })) {
                         ForEach(options, id: \.self) { path in
                             Text(path.joined(separator: " › ")).tag(path)
                         }
@@ -173,8 +174,9 @@ struct PremiereTemplateView: View {
 
     private var statusSection: some View {
         let folderTemplate = app.selectedTemplate
-        let destinationExists = folderTemplate?.nodes.allPaths.contains(app.premiere[keyPath: folderPath]) ?? false
-        let destination = app.premiere[keyPath: folderPath].joined(separator: "/")
+        let match = folderTemplate?.nodes.matchingPath(app.premiere[keyPath: folderPath])
+        let destinationExists = match != nil
+        let destination = (match ?? app.premiere[keyPath: folderPath]).joined(separator: "/")
 
         return VStack(alignment: .leading, spacing: 8) {
             SectionHeader("Template Status")

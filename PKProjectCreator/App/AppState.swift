@@ -16,7 +16,11 @@ final class AppState {
     var templates: [FolderTemplate]
     /// A problem to show the user (loading, saving, permissions); nil when everything is fine.
     var notice: String?
-    var premiere = PremiereTemplateConfig()
+    /// Where the Premiere and Resolve copies go inside a project; saved with the settings.
+    var premiere: PremiereTemplateConfig {
+        get { settings.copyFolders }
+        set { settings.copyFolders = newValue }
+    }
     /// The project destination folder (on KIOXIA by default). Tracked independently of the template.
     private(set) var destination = ResourceStatus()
     /// The Premiere master project file (on WORK by default).
@@ -347,11 +351,22 @@ final class AppState {
         return usable.first { $0.defaultProjectTypes.contains(type) } ?? usable.first
     }
 
-    /// The one place template edits go through: applies `body`, then saves.
+    /// The one place template edits go through: applies `body`, then saves. When a Copy Into folder is renamed
+    /// or moved, Copy Into follows it.
     @discardableResult
     func updateTemplate<T>(_ id: FolderTemplate.ID, _ body: (inout FolderTemplate) throws -> T) rethrows -> T? {
         guard let index = templates.firstIndex(where: { $0.id == id }) else { return nil }
+        let before = templates[index].nodes
         let result = try body(&templates[index])
+        let after = templates[index].nodes
+        var folders = premiere
+        for key in [\PremiereTemplateConfig.destinationFolder, \.resolveFolder] {
+            if let old = before.matchingPath(folders[keyPath: key]), let folderID = before.node(atPath: old)?.id,
+               let new = after.path(of: folderID) {
+                folders[keyPath: key] = new
+            }
+        }
+        if folders != premiere { premiere = folders }
         saveTemplates()
         return result
     }
@@ -433,6 +448,65 @@ final class AppState {
         } catch {
             notice = "Your settings couldn’t be saved: \(error.localizedDescription)"
         }
+    }
+
+    // MARK: Project types
+
+    func projectTypeNameIssue(_ name: String, for type: ProjectType?) -> String? {
+        if name.isBlank { return "Enter a type name." }
+        if name.contains(where: { $0 == "/" || $0 == ":" }) { return "Type names can’t contain “/” or “:”: they become part of the folder name." }
+        if name.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) { return "Type names can’t contain line breaks." }
+        if settings.projectTypes.contains(where: { $0 != type && FolderNaming.sameName($0.rawValue, name) }) {
+            return "Another type already uses this name."
+        }
+        return nil
+    }
+
+    @discardableResult
+    func addProjectType() -> ProjectType {
+        let type = ProjectType(FolderNaming.uniqueName("New Type", among: settings.projectTypes.map(\.rawValue)))
+        settings.projectTypes.append(type)
+        return type
+    }
+
+    /// Renames a type everywhere it is used for new projects. Recent projects keep the name their folder has.
+    func renameProjectType(_ type: ProjectType, to name: String) {
+        let name = name.trimmingCharacters(in: .whitespaces)
+        guard projectTypeNameIssue(name, for: type) == nil, name != type.rawValue,
+              let index = settings.projectTypes.firstIndex(of: type) else { return }
+        let renamed = ProjectType(name)
+        var updated = settings
+        updated.projectTypes[index] = renamed
+        if updated.defaultProjectType == type { updated.defaultProjectType = renamed }
+        settings = updated
+        replaceTypeInTemplates(type, with: renamed)
+        if draft.type == type { draft.type = renamed }
+    }
+
+    /// The last type can't be removed. Recent projects of this type keep it.
+    func removeProjectType(_ type: ProjectType) {
+        guard settings.projectTypes.count > 1 else { return }
+        var updated = settings
+        updated.projectTypes.removeAll { $0 == type }
+        if updated.defaultProjectType == type { updated.defaultProjectType = updated.projectTypes[0] }
+        settings = updated
+        replaceTypeInTemplates(type, with: nil)
+        if draft.type == type {
+            draft.type = settings.defaultProjectType
+            draft.templateID = defaultTemplate(for: draft.type)?.id
+        }
+    }
+
+    func moveProjectType(_ type: ProjectType, by offset: Int) {
+        guard let index = settings.projectTypes.firstIndex(of: type), settings.projectTypes.indices.contains(index + offset) else { return }
+        settings.projectTypes.swapAt(index, index + offset)
+    }
+
+    private func replaceTypeInTemplates(_ type: ProjectType, with replacement: ProjectType?) {
+        for index in templates.indices where templates[index].defaultProjectTypes.contains(type) {
+            templates[index].defaultProjectTypes = templates[index].defaultProjectTypes.compactMap { $0 == type ? replacement : $0 }
+        }
+        saveTemplates()
     }
 
     // MARK: Destination and Premiere template

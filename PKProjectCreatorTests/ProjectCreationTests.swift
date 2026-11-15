@@ -28,7 +28,7 @@ struct ProjectCreationTests {
             date: try date(2026, 11, 12), type: .event, projectName: name,
             templateID: template.id, templateName: template.name, folders: folders ?? template.nodes,
             destinationFolderURL: destination, useYearFolder: useYearFolder,
-            createsPremiereProject: premiere, premiereFolder: ["04_Project", "Premiere Pro"]
+            createsPremiereProject: premiere, premiereFolder: ["07_Project", "Premiere Pro"]
         )
     }
 
@@ -52,8 +52,8 @@ struct ProjectCreationTests {
         #expect(plan.generatedName == "2026 - 11 - 12 Event Develon")
         #expect(plan.yearFolderURL.plainPath == "/Volumes/KIOXIA/PROJECT VIDEO/EVENT/2026")
         #expect(plan.projectURL.plainPath == "/Volumes/KIOXIA/PROJECT VIDEO/EVENT/2026/2026 - 11 - 12 Event Develon")
-        #expect(plan.directoryCount == 19)
-        #expect(plan.premiereOutputRelativePath == "04_Project/Premiere Pro/2026 - 11 - 12 Event Develon.prproj")
+        #expect(plan.directoryCount == 20)
+        #expect(plan.premiereOutputRelativePath == "07_Project/Premiere Pro/2026 - 11 - 12 Event Develon.prproj")
 
         let custom = try self.plan(in: URL(filePath: "/Users/me/Jobs"), useYearFolder: false)
         #expect(custom.yearFolderName == nil)
@@ -70,11 +70,11 @@ struct ProjectCreationTests {
 
         let root = destination.appending(path: "2026/2026 - 11 - 12 Event Develon")
         #expect(directories(in: root) == Set(FolderTemplate.standardProduction().nodes.allPaths.map { $0.joined(separator: "/") }))
-        #expect(directories(in: root).count == 18)
+        #expect(directories(in: root).count == 19)
         // The year folder holds the project and nothing else: no staging folder is left behind.
         #expect(try files.contentsOfDirectory(atPath: destination.appending(path: "2026").plainPath) == ["2026 - 11 - 12 Event Develon"])
         #expect(project.fullPath == root.plainPath + "/")
-        #expect(project.directoryCount == 19)
+        #expect(project.directoryCount == 20)
         #expect(!project.hasPremiereProject)
         #expect(try JSONDecoder().decode(RecentProject.self, from: JSONEncoder().encode(project)) == project)
     }
@@ -101,14 +101,14 @@ struct ProjectCreationTests {
         _ = try await ProjectCreationService().create(plan, in: destination)
         let footage = plan.projectFolder(in: destination).appending(path: "01_Footages/Cam 01/clip.mov")
         try Data("footage".utf8).write(to: footage)
-        try files.removeItem(at: plan.projectFolder(in: destination).appending(path: "07_Export"))
+        try files.removeItem(at: plan.projectFolder(in: destination).appending(path: "08_Export"))
 
         let failure = await error { _ = try await ProjectCreationService().create(plan, in: destination) }
 
         #expect(failure == .alreadyExists("2026 - 11 - 12 Event Develon"))
         #expect(try Data(contentsOf: footage) == Data("footage".utf8))
         // Not merged: the folder the user deleted was not put back.
-        #expect(!files.fileExists(atPath: plan.projectFolder(in: destination).appending(path: "07_Export").plainPath))
+        #expect(!files.fileExists(atPath: plan.projectFolder(in: destination).appending(path: "08_Export").plainPath))
         #expect(try files.contentsOfDirectory(atPath: plan.parentFolder(in: destination).plainPath).count == 1)
     }
 
@@ -116,7 +116,7 @@ struct ProjectCreationTests {
         let destination = try makeDestination()
         defer { try? files.removeItem(at: destination) }
         let service = ProjectCreationService(willWrite: { folder in
-            if folder.lastPathComponent == "04_Project" { throw InjectedFailure() }
+            if folder.lastPathComponent == "07_Project" { throw InjectedFailure() }
         })
 
         // The year folder didn't exist before: it is removed again, so the destination is exactly as it was.
@@ -137,7 +137,7 @@ struct ProjectCreationTests {
         let destination = try makeDestination()
         defer { try? files.removeItem(at: destination) }
         let service = ProjectCreationService(willWrite: { folder in
-            if folder.lastPathComponent == "03_SFX" { withUnsafeCurrentTask { $0?.cancel() } }
+            if folder.lastPathComponent == "04_SFX" { withUnsafeCurrentTask { $0?.cancel() } }
         })
 
         // Runs in its own task, so the hook cancels the creation and not the test itself.
@@ -189,7 +189,7 @@ struct ProjectCreationTests {
 
         #expect(app.notice == nil)
         #expect(app.createdProject?.name == "2026 - 11 - 12 Event Develon")
-        #expect(directories(in: destination.appending(path: "2026/2026 - 11 - 12 Event Develon")).count == 18)
+        #expect(directories(in: destination.appending(path: "2026/2026 - 11 - 12 Event Develon")).count == 19)
         #expect(app.draft.projectName.isEmpty)
 
         // The same project again is refused and reported, not overwritten.
@@ -229,7 +229,7 @@ struct HardeningTests {
         let date = try #require(Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 11, day: 12, hour: 12)))
         return ProjectCreationPlan(
             date: date, type: .psc, projectName: name, templateID: UUID(), templateName: "Standard Production", folders: folders,
-            destinationFolderURL: destination, useYearFolder: false, createsPremiereProject: premiere, premiereFolder: ["04_Project", "Premiere Pro"]
+            destinationFolderURL: destination, useYearFolder: false, createsPremiereProject: premiere, premiereFolder: ["07_Project", "Premiere Pro"]
         )
     }
 
@@ -246,7 +246,7 @@ struct HardeningTests {
 
         let created = try files.contentsOfDirectory(atPath: destination.plainPath)
         #expect(created.map { $0.precomposedStringWithCanonicalMapping } == [plan.generatedName.precomposedStringWithCanonicalMapping])
-        let premiere = try files.contentsOfDirectory(atPath: plan.projectFolder(in: destination).appending(path: "04_Project/Premiere Pro").plainPath)
+        let premiere = try files.contentsOfDirectory(atPath: plan.projectFolder(in: destination).appending(path: "07_Project/Premiere Pro").plainPath)
         #expect(premiere.map { $0.precomposedStringWithCanonicalMapping } == ["\(plan.generatedName).prproj".precomposedStringWithCanonicalMapping])
     }
 

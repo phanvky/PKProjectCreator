@@ -74,6 +74,7 @@ struct FolderTemplatesView: View {
 }
 
 private struct TemplateListRow: View {
+    @Environment(AppState.self) private var app
     let template: FolderTemplate
 
     var body: some View {
@@ -90,7 +91,7 @@ private struct TemplateListRow: View {
     }
 
     private var defaultsText: String {
-        let types = template.defaultTypesList
+        let types = template.defaultTypesList(in: app.settings.projectTypes)
         return types.isEmpty ? "Not a default" : "Default for " + types.map(\.rawValue).joined(separator: ", ")
     }
 }

@@ -40,6 +40,48 @@ nonisolated extension Array where Element == FolderNode {
         return nil
     }
 
+    /// The names from the top level down to the folder with `id`.
+    func path(of id: UUID) -> [String]? {
+        for node in self {
+            if node.id == id { return [node.name] }
+            if let path = node.children.path(of: id) { return [node.name] + path }
+        }
+        return nil
+    }
+
+    func node(atPath path: [String]) -> FolderNode? {
+        guard let name = path.first, let node = first(where: { $0.name == name }) else { return nil }
+        return path.count == 1 ? node : node.children.node(atPath: [String](path.dropFirst()))
+    }
+
+    /// `path` itself, or the folder it means after renumbering, e.g. "04_Project/Premiere Pro" → "05_Project/Premiere Pro".
+    func matchingPath(_ path: [String]) -> [String]? {
+        let paths = allPaths
+        if paths.contains(path) { return path }
+        let key = path.map(FolderNaming.withoutNumber)
+        return paths.first { $0.map(FolderNaming.withoutNumber) == key }
+    }
+
+    /// Adds "New Folder" (with a number if that name is taken) at the top level or inside `parentID`.
+    @discardableResult
+    mutating func addFolder(inParent parentID: UUID? = nil) -> FolderNode {
+        let siblings = parentID.map { node(withID: $0)?.children ?? [] } ?? self
+        let node = FolderNode(FolderNaming.uniqueName("New Folder", among: siblings.map(\.name)))
+        if let parentID { appendChild(node, to: parentID) } else { append(node) }
+        return node
+    }
+
+    func folderNameIssue(_ name: String, for id: UUID) -> FolderEditIssue? {
+        let siblings = siblings(of: id)?.filter { $0.id != id }.map(\.name) ?? []
+        return FolderNaming.issue(for: name, siblings: siblings)
+    }
+
+    /// Renames one folder; everything inside it is kept.
+    mutating func renameFolder(_ id: UUID, to name: String) throws {
+        if let issue = folderNameIssue(name, for: id) { throw issue }
+        rename(id, to: name)
+    }
+
     /// The folders at the same level as `id`, including `id` itself.
     func siblings(of id: UUID) -> [FolderNode]? {
         if contains(where: { $0.id == id }) { return self }

@@ -42,6 +42,12 @@ nonisolated enum FolderNaming {
         a.lowercased() == b.lowercased()
     }
 
+    /// The name without its leading number, for matching renumbered folders: "05_Project" → "project".
+    static func withoutNumber(_ name: String) -> String {
+        let stripped = name.replacing(/^\d+[\s._-]*/, with: "").lowercased()
+        return stripped.isEmpty ? name.lowercased() : stripped
+    }
+
     /// "New Folder", then "New Folder 2", "New Folder 3"…
     static func uniqueName(_ base: String, among existing: [String]) -> String {
         var name = base

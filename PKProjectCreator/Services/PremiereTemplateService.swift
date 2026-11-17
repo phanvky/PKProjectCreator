@@ -81,10 +81,12 @@ nonisolated enum PremiereTemplateService {
 
 /// A DaVinci Resolve `.drp` is a zip archive whose `project.xml` holds the name Resolve shows on import. Renaming the
 /// file alone isn't enough, so the copy gets the generated name written into `<ProjectName>`. Only the copy inside
-/// the new project is changed; the master is never opened for writing. The Working Folders are left as in the master.
+/// the new project is changed; the master is never opened for writing. The Working Folders (media, proxy, cache) are
+/// pointed at `workingFolder` by `ResolveWorkingFolders`.
 nonisolated enum ResolveProjectFile {
-    /// Replaces the single `<ProjectName>` in `drp` with `name`, keeping every other entry and their order.
-    static func setProjectName(_ name: String, in drp: URL) throws {
+    /// Replaces the single `<ProjectName>` in `drp` with `name` and sets the Working Folders, keeping every other entry
+    /// and their order. `workingFolder` is where the `.drp` will finally live (not a staging folder).
+    static func setProjectName(_ name: String, workingFolder: URL, in drp: URL) throws {
         let files = FileManager.default
         // The zip tools run as child processes, so they only touch the app's own temporary folder.
         let work = files.temporaryDirectory.appending(path: "PKResolve-\(UUID().uuidString)", directoryHint: .isDirectory)
@@ -104,7 +106,8 @@ nonisolated enum ResolveProjectFile {
             guard xml.matches(of: pattern).count == 1 else {
                 throw PremiereTemplateError.resolveFileFailed("project.xml doesn’t have exactly one <ProjectName>.")
             }
-            try xml.replacing(pattern, with: "<ProjectName>\(escaped(name))</ProjectName>").write(to: xmlURL, atomically: true, encoding: .utf8)
+            let named = xml.replacing(pattern, with: "<ProjectName>\(escaped(name))</ProjectName>")
+            try ResolveWorkingFolders.apply(folder: workingFolder, projectName: name, to: named).write(to: xmlURL, atomically: true, encoding: .utf8)
 
             // -X: no macOS extra attributes, -D: no folder entries (Resolve's own export has none).
             _ = try run("/usr/bin/zip", ["-q", "-X", "-D", output.plainPath] + entries, in: contents)

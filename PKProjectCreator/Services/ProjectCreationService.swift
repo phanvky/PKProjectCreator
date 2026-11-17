@@ -119,7 +119,8 @@ nonisolated struct ProjectCreationService: Sendable {
                 try willWrite(folder.appending(path: PremiereTemplateService.outputFilename(for: plan.generatedName, fileExtension: ext)))
                 do {
                     let copy = try PremiereTemplateService.copy(resolveTemplate, into: folder, generatedName: plan.generatedName, fileExtension: ext)
-                    try ResolveProjectFile.setProjectName(plan.generatedName, in: copy)
+                    let finalFolder = resolveFolder.reduce(project) { $0.appending(path: $1, directoryHint: .isDirectory) }
+                    try ResolveProjectFile.setProjectName(plan.generatedName, workingFolder: finalFolder, in: copy)
                 } catch let error as PremiereTemplateError {
                     throw ProjectCreationError.resolve(error)
                 }

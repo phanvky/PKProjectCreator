@@ -115,11 +115,45 @@ struct PremiereTemplateTests {
         )
     }
 
+    private static let masterFolder = "/Volumes/WORK/TÀI NGUYÊN /PROJECT MODEL"
+
+    /// Resolve's settings as a hex `<FieldsBlob>`: "SetupBA" holding a zstd-compressed protobuf, laid out like a real
+    /// export. Field 36 holds the Working Folders (37 unknown, 38 gallery, 39 cache, 40 proxy, 124 media/name).
+    private func setupBlob(workingFolders: [UInt8]) throws -> String {
+        func u32(_ value: Int) -> [UInt8] { withUnsafeBytes(of: UInt32(value).bigEndian, Array.init) }
+        let header: [UInt8] = [0x08, 0x01] // field 1 = 1, a plain number before the folders
+        let settings = header + ResolveWorkingFolders.field(36, u32(2) + u32(workingFolders.count) + workingFolders)
+        let payload = [0x81] + (try ResolveWorkingFolders.compress(settings))
+        let array = u32(1) + u32(payload.count) + payload
+        let name = Array("SetupBA".data(using: .utf16BigEndian)!)
+        let tail = u32(4) + Array("Tail".utf8) // a later setting that must survive unchanged
+        let blob = u32(1) + u32(2) + u32(name.count) + name + u32(0x0c) + [0] + u32(array.count) + array + tail
+        return "<FieldsBlob>" + blob.map { String(format: "%02x", $0) }.joined() + "</FieldsBlob>"
+    }
+
+    private func masterWorkingFolders(media: Bool = true) -> [UInt8] {
+        let folder = Self.masterFolder + "/PROJECT MODEL"
+        return [37, 38, 39, 40].flatMap { ResolveWorkingFolders.field($0, Array(($0 == 38 ? "/Volumes/WORK/.gallery" : folder).utf8)) }
+            + (media ? ResolveWorkingFolders.field(124, Array((Self.masterFolder + "/Project Model").utf8)) : [])
+    }
+
+    /// The decompressed Resolve settings of a `.drp`'s `project.xml`.
+    private func settings(in xml: String) throws -> [UInt8] {
+        let hex = try #require(xml.firstMatch(of: /<FieldsBlob>([0-9a-f]+)<\/FieldsBlob>/)?.output.1)
+        let bytes = stride(from: 0, to: hex.count, by: 2).map { offset -> UInt8 in
+            let start = hex.index(hex.startIndex, offsetBy: offset)
+            return UInt8(hex[start..<hex.index(start, offsetBy: 2)], radix: 16)!
+        }
+        let magic = try #require(bytes.firstRange(of: [0x28, 0xb5, 0x2f, 0xfd]))
+        #expect(bytes.suffix(8) == [0, 0, 0, 4] + Array("Tail".utf8))
+        return try ResolveWorkingFolders.decompress(Array(bytes[magic.lowerBound..<(bytes.count - 8)]))
+    }
+
     /// A small real `.drp`: a zip with `project.xml` first, like Resolve's own export.
     private func makeDrp(in folder: URL, name: String = "Project Template.drp", projectXML: String? = nil) throws -> URL {
         let source = try makeFolder("DrpSource")
         defer { try? files.removeItem(at: source) }
-        let xml = projectXML ?? "<?xml version=\"1.0\"?><Project><ProjectName>Project Model</ProjectName><Name>Project Model.Cfg</Name></Project>"
+        let xml = try projectXML ?? "<?xml version=\"1.0\"?><Project><ProjectName>Project Model</ProjectName><Name>Project Model.Cfg</Name>\(setupBlob(workingFolders: masterWorkingFolders()))</Project>"
         try xml.write(to: source.appending(path: "project.xml"), atomically: true, encoding: .utf8)
         try files.createDirectory(at: source.appending(path: "MediaPool/Master"), withIntermediateDirectories: true)
         try "<MpFolder>Lễ hội</MpFolder>".write(to: source.appending(path: "MediaPool/Master/MpFolder.xml"), atomically: true, encoding: .utf8)
@@ -164,6 +198,16 @@ struct PremiereTemplateTests {
         #expect(xml.contains("<ProjectName>2026 - 11 - 12 Event Develon</ProjectName>"))
         #expect(xml.contains("<Name>Project Model.Cfg</Name>"))
         #expect(try entry("MediaPool/Master/MpFolder.xml", of: copy) == "<MpFolder>Lễ hội</MpFolder>")
+        // Media, proxy and cache point at the final DaVinci Resolve folder (not the staging one); the rest is unchanged.
+        let folder = root.appending(path: "07_Project/DaVinci Resolve").plainPath.precomposedStringWithCanonicalMapping
+        let masterPath = Self.masterFolder + "/PROJECT MODEL"
+        let expected: [UInt8] = [0x08, 0x01] + ResolveWorkingFolders.field(36, try {
+            let folders = ResolveWorkingFolders.field(37, Array(masterPath.utf8)) + ResolveWorkingFolders.field(38, Array("/Volumes/WORK/.gallery".utf8))
+                + ResolveWorkingFolders.field(39, Array(folder.utf8)) + ResolveWorkingFolders.field(40, Array(folder.utf8))
+                + ResolveWorkingFolders.field(124, Array((folder + "/2026 - 11 - 12 Event Develon").utf8))
+            return withUnsafeBytes(of: UInt32(2).bigEndian, Array.init) + withUnsafeBytes(of: UInt32(folders.count).bigEndian, Array.init) + folders
+        }())
+        #expect(try settings(in: xml) == expected)
         #expect(try Data(contentsOf: root.appending(path: "07_Project/Premiere Pro/2026 - 11 - 12 Event Develon.prproj")) == fixtureBytes)
         #expect(try snapshot(resolveMaster) == before)
     }
@@ -201,6 +245,19 @@ struct PremiereTemplateTests {
             return
         }
         #expect(try files.contentsOfDirectory(atPath: destination.plainPath).isEmpty)
+    }
+
+    @Test func missingWorkingFoldersAreAddedAndMissingSettingsAreRefused() throws {
+        let xml = "<Project>\(try setupBlob(workingFolders: masterWorkingFolders(media: false)))</Project>"
+        let result = try ResolveWorkingFolders.apply(folder: URL(filePath: "/Volumes/X/New"), projectName: "Name", to: xml)
+        let added = try settings(in: result)
+        let media = ResolveWorkingFolders.field(124, Array("/Volumes/X/New/Name".utf8))
+        #expect(added.suffix(media.count).elementsEqual(media))
+        #expect(added.firstRange(of: ResolveWorkingFolders.field(39, Array("/Volumes/X/New".utf8))) != nil)
+
+        #expect(throws: PremiereTemplateError.self) {
+            try ResolveWorkingFolders.apply(folder: URL(filePath: "/Volumes/X"), projectName: "Name", to: "<Project><FieldsBlob>00</FieldsBlob></Project>")
+        }
     }
 
     @Test func projectNamesAreEscapedForXML() {

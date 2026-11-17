@@ -107,7 +107,7 @@ nonisolated struct ProjectUpdateService: Sendable {
                 guard !Self.hasFile(withExtension: ext, in: target) else { throw Self.reason("a DaVinci Resolve project is already there") }
                 let copy = try PremiereTemplateService.copy(resolveTemplate, into: target, generatedName: generatedName, fileExtension: ext)
                 do {
-                    try ResolveProjectFile.setProjectName(generatedName, in: copy)
+                    try ResolveProjectFile.setProjectName(generatedName, workingFolder: target, in: copy)
                 } catch {
                     try? files.removeItem(at: copy)
                     throw error

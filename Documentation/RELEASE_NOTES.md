@@ -1,3 +1,9 @@
+# PKProjectCreator 1.0.3 (build 4) — 2026-11-18
+
+- **DaVinci Resolve Working Folders:** the copied `.drp` now has Project media location, Proxy generation location and Cache files location set to the project's own `DaVinci Resolve` folder (e.g. `…/07_Project/DaVinci Resolve`), for new projects and for Update Project. Confirmed by importing into Resolve 21.
+- Gallery stills location can't be set from the file: Resolve sets it from the project library on import. Change it by hand in Project Settings if needed.
+- Adds the official zstd 1.5.7 library (built into the app) to read and write Resolve's compressed settings.
+
 # PKProjectCreator 1.0.2 (build 3) — 2026-11-15
 
 - **Edit folders per project:** Folder Preview on New Project has the folder toolbar (add, subfolder, move, rename, delete, drag onto another folder). Changes apply to that project only; Reset to Template undoes them. Switching to another template asks before discarding them.
